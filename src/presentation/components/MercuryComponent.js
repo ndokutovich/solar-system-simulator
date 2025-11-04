@@ -33,6 +33,9 @@ export class MercuryComponent {
     this.routePath = null;
     this.gridHelper = null;
     this.axesHelper = null;
+    this.perihelionMarker = null;
+    this.aphelionMarker = null;
+    this.routeLines = [];
   }
 
   /**
@@ -47,6 +50,7 @@ export class MercuryComponent {
     this.createPoleMarkers();
     this.createAxes();
     this.createOrbitLine();
+    this.createPerihelionMarkers();
     this.createGrid();
     this.createStars();
 
@@ -306,6 +310,44 @@ export class MercuryComponent {
   }
 
   /**
+   * Creates perihelion and aphelion markers
+   */
+  createPerihelionMarkers() {
+    const a = MERCURY_CONSTANTS.SUN_DISTANCE;
+    const e = MERCURY_CONSTANTS.ECCENTRICITY;
+
+    // Perihelion (closest point to sun) - at angle 0
+    const perihelionDist = a * (1 - e);
+    const perihelionGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+    const perihelionMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff4444,
+      transparent: true,
+      opacity: 0.8
+    });
+    this.perihelionMarker = new THREE.Mesh(perihelionGeometry, perihelionMaterial);
+    this.perihelionMarker.position.x = perihelionDist;
+    this.perihelionMarker.position.z = 0;
+    this.perihelionMarker.visible = false; // Hidden by default
+
+    // Aphelion (farthest point from sun) - at angle PI
+    const aphelionDist = a * (1 + e);
+    const aphelionGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+    const aphelionMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4444ff,
+      transparent: true,
+      opacity: 0.8
+    });
+    this.aphelionMarker = new THREE.Mesh(aphelionGeometry, aphelionMaterial);
+    this.aphelionMarker.position.x = -aphelionDist;
+    this.aphelionMarker.position.z = 0;
+    this.aphelionMarker.visible = false; // Hidden by default
+
+    // Add to orbit group (not Mercury group, as they stay fixed in orbit)
+    this.mercuryOrbitGroup.add(this.perihelionMarker);
+    this.mercuryOrbitGroup.add(this.aphelionMarker);
+  }
+
+  /**
    * Creates coordinate grid
    */
   createGrid() {
@@ -433,5 +475,102 @@ export class MercuryComponent {
     if (this.axesHelper) {
       this.axesHelper.visible = visible;
     }
+  }
+
+  /**
+   * Sets perihelion/aphelion markers visibility
+   */
+  setPerihelionVisibility(visible) {
+    if (this.perihelionMarker) {
+      this.perihelionMarker.visible = visible;
+    }
+    if (this.aphelionMarker) {
+      this.aphelionMarker.visible = visible;
+    }
+  }
+
+  /**
+   * Shows route visualization on Mercury surface
+   * @param {string} routeType - Type of route: 'polar', 'terminator', or 'comfort'
+   */
+  showRoute(routeType) {
+    this.clearRoutes(); // Clear existing routes first
+
+    let points = [];
+    const segments = 100;
+
+    switch (routeType) {
+      case 'polar':
+        // Route from south pole to north pole along 0° longitude
+        for (let i = 0; i <= segments; i++) {
+          const lat = -90 + (180 * i / segments);
+          const lon = 0;
+          const radius = MERCURY_CONSTANTS.RADIUS + 0.05; // Slightly above surface
+
+          const latRad = degreesToRadians(lat);
+          const lonRad = degreesToRadians(lon);
+
+          points.push(new THREE.Vector3(
+            radius * Math.cos(latRad) * Math.sin(lonRad),
+            radius * Math.sin(latRad),
+            radius * Math.cos(latRad) * Math.cos(lonRad)
+          ));
+        }
+        break;
+
+      case 'terminator':
+        // Route along morning terminator (90° longitude)
+        for (let i = 0; i <= segments; i++) {
+          const lat = -80 + (160 * i / segments); // Avoid poles
+          const lon = 90;
+          const radius = MERCURY_CONSTANTS.RADIUS + 0.05;
+
+          const latRad = degreesToRadians(lat);
+          const lonRad = degreesToRadians(lon);
+
+          points.push(new THREE.Vector3(
+            radius * Math.cos(latRad) * Math.sin(lonRad),
+            radius * Math.sin(latRad),
+            radius * Math.cos(latRad) * Math.cos(lonRad)
+          ));
+        }
+        break;
+
+      case 'comfort':
+        // Route through comfort zone (around terminator at equator)
+        for (let i = 0; i <= segments; i++) {
+          const lon = 60 + (60 * i / segments); // 60° to 120° longitude
+          const lat = 0; // Equator
+          const radius = MERCURY_CONSTANTS.RADIUS + 0.05;
+
+          const latRad = degreesToRadians(lat);
+          const lonRad = degreesToRadians(lon);
+
+          points.push(new THREE.Vector3(
+            radius * Math.cos(latRad) * Math.sin(lonRad),
+            radius * Math.sin(latRad),
+            radius * Math.cos(latRad) * Math.cos(lonRad)
+          ));
+        }
+        break;
+    }
+
+    if (points.length > 0) {
+      const routeLine = createLine(points, 0x00ff00, 3, false, 1);
+      this.routeLines.push(routeLine);
+      this.mercuryGroup.add(routeLine);
+    }
+  }
+
+  /**
+   * Clears all route visualizations
+   */
+  clearRoutes() {
+    this.routeLines.forEach(line => {
+      this.mercuryGroup.remove(line);
+      if (line.geometry) line.geometry.dispose();
+      if (line.material) line.material.dispose();
+    });
+    this.routeLines = [];
   }
 }

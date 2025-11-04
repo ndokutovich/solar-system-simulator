@@ -211,6 +211,14 @@ export class Application {
     this.uiController.on(DOM_IDS.SHOW_AXES, 'change', (e) => {
       this.mercuryComponent.setAxesVisibility(e.target.checked);
     });
+
+    this.uiController.on(DOM_IDS.SHOW_SUN_RAYS, 'change', (e) => {
+      this.sunComponent.setRaysVisibility(e.target.checked);
+    });
+
+    this.uiController.on(DOM_IDS.SHOW_PERIHELION, 'change', (e) => {
+      this.mercuryComponent.setPerihelionVisibility(e.target.checked);
+    });
   }
 
   /**
@@ -229,6 +237,23 @@ export class Application {
       if (this.cameraController.isInSurfaceView()) {
         this.updateSurfaceView();
       }
+    });
+
+    // Route visualization controls
+    this.uiController.on(DOM_IDS.ROUTE_POLAR, 'click', () => {
+      this.mercuryComponent.showRoute('polar');
+    });
+
+    this.uiController.on(DOM_IDS.ROUTE_TERMINATOR, 'click', () => {
+      this.mercuryComponent.showRoute('terminator');
+    });
+
+    this.uiController.on(DOM_IDS.ROUTE_COMFORT, 'click', () => {
+      this.mercuryComponent.showRoute('comfort');
+    });
+
+    this.uiController.on(DOM_IDS.CLEAR_ROUTE, 'click', () => {
+      this.mercuryComponent.clearRoutes();
     });
   }
 

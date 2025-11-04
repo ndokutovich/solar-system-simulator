@@ -13,6 +13,7 @@ export class SunComponent {
     this.sunLight = null;
     this.pointLight = null;
     this.ambientLight = null;
+    this.sunRays = null;
   }
 
   /**
@@ -23,6 +24,7 @@ export class SunComponent {
     this.createSunGroup();
     this.createSunSphere();
     this.createSunGlow();
+    this.createSunRays();
     this.createDirectionalLight();
     this.createPointLight();
     this.createAmbientLight();
@@ -68,6 +70,41 @@ export class SunComponent {
 
     const glow = new THREE.Mesh(geometry, material);
     this.sunGroup.add(glow);
+  }
+
+  /**
+   * Creates sun rays (light beams)
+   */
+  createSunRays() {
+    this.sunRays = new THREE.Group();
+    const rayCount = 12;
+    const rayLength = 50;
+    const rayWidth = 0.1;
+
+    for (let i = 0; i < rayCount; i++) {
+      const angle = (i / rayCount) * Math.PI * 2;
+      const geometry = new THREE.CylinderGeometry(rayWidth, rayWidth * 0.01, rayLength, 8);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xffff88,
+        transparent: true,
+        opacity: 0.15
+      });
+
+      const ray = new THREE.Mesh(geometry, material);
+
+      // Position ray from sun center
+      ray.position.x = Math.cos(angle) * (rayLength / 2);
+      ray.position.z = Math.sin(angle) * (rayLength / 2);
+
+      // Rotate to point outward
+      ray.rotation.z = Math.PI / 2;
+      ray.rotation.y = angle;
+
+      this.sunRays.add(ray);
+    }
+
+    this.sunRays.visible = false; // Hidden by default
+    this.sunGroup.add(this.sunRays);
   }
 
   /**
@@ -156,5 +193,15 @@ export class SunComponent {
    */
   getAmbientLight() {
     return this.ambientLight;
+  }
+
+  /**
+   * Sets sun rays visibility
+   * @param {boolean} visible - Whether rays should be visible
+   */
+  setRaysVisibility(visible) {
+    if (this.sunRays) {
+      this.sunRays.visible = visible;
+    }
   }
 }
