@@ -157,25 +157,37 @@ export class MercuryComponent {
   }
 
   /**
-   * Calculates temperature for a pixel
+   * Calculates temperature - CORRECT VERSION
+   * lon=180° faces sun (subsolar point) = HOT
+   * lon=0° faces away (antisolar point) = COLD
    */
   calculatePixelTemperature(lon, lat) {
-    const sunAngle = ((lon + 360) % 360);
-    let temp;
+    // Normalize longitude to -180 to 180
+    const normLon = ((lon + 180) % 360) - 180;
 
-    if (sunAngle < 90) {
-      temp = -173 + (sunAngle / 90) * 600;
-    } else if (sunAngle < 180) {
-      temp = 427;
-    } else if (sunAngle < 270) {
-      temp = 427 - ((sunAngle - 180) / 90) * 600;
+    // Calculate distance from subsolar point at lon=180°
+    const distFromSubsolar = Math.abs(normLon - 180) > 180 ?
+      360 - Math.abs(normLon - 180) : Math.abs(normLon - 180);
+
+    // Temperature gradient from subsolar to antisolar
+    let baseTemp;
+    if (distFromSubsolar < 90) {
+      // Day side: 0° to 90° from subsolar point
+      // lon=180° → 427°C, decreasing towards terminators
+      const normalized = distFromSubsolar / 90;
+      baseTemp = 427 - normalized * 300; // 427°C to 127°C
     } else {
-      temp = -173;
+      // Night side: 90° to 180° from subsolar point
+      // Terminators to antisolar point (lon=0°)
+      const normalized = (distFromSubsolar - 90) / 90;
+      baseTemp = 127 - normalized * 300; // 127°C to -173°C
     }
 
-    // Polar modification
-    const polarFactor = Math.abs(Math.sin(degreesToRadians(lat)));
-    return temp * (1 - polarFactor * 0.3);
+    // Latitude cooling - poles receive less sunlight
+    const latRad = degreesToRadians(lat);
+    const latitudeFactor = Math.cos(latRad);
+
+    return baseTemp * (0.3 + 0.7 * latitudeFactor);
   }
 
   /**
@@ -572,5 +584,15 @@ export class MercuryComponent {
       if (line.material) line.material.dispose();
     });
     this.routeLines = [];
+  }
+
+  /**
+   * Updates terminator line orientation
+   * This is no longer needed as terminators rotate with the planet mesh
+   * @param {number} angle - Angle in radians (kept for compatibility)
+   */
+  updateTerminatorOrientation(angle) {
+    // Terminators are now fixed to the planet mesh and rotate with it
+    // No additional rotation needed
   }
 }

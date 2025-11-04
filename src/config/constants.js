@@ -70,8 +70,8 @@ export const SUN_CONFIG = {
 };
 
 export const AMBIENT_CONFIG = {
-  COLOR: 0x202030,
-  INTENSITY: 0.1
+  COLOR: 0x404050,  // Slightly brighter ambient color
+  INTENSITY: 0.4    // Increased from 0.1 to 0.4 to see back side
 };
 
 export const STARS_CONFIG = {

@@ -410,11 +410,7 @@ export class Application {
    * Applies physics state to 3D scene
    */
   applyPhysicsToScene() {
-    // Rotate Mercury
-    const mercury = this.mercuryComponent.getMercury();
-    mercury.rotation.y = this.mercuryState.rotation * Math.PI / 180;
-
-    // Update orbital position
+    // Update orbital position first
     const orbitalPos = calculateOrbitalPosition(
       this.mercuryState.orbitalAngle,
       this.mercuryState.eccentricity,
@@ -424,6 +420,16 @@ export class Application {
     const mercuryGroup = this.mercuryComponent.getMercuryGroup();
     mercuryGroup.position.x = orbitalPos.x;
     mercuryGroup.position.z = orbitalPos.z;
+
+    // Calculate angle from Mercury to Sun
+    const angleToSun = Math.atan2(-orbitalPos.z, -orbitalPos.x);
+
+    // Rotate ENTIRE mercuryGroup to lock temperature to sun (1:1):
+    // - Rotates mercury mesh, terminators, and everything together
+    // - lon=180° in texture faces sun (HOT)
+    // - lon=0° faces away (COLD)
+    // - Terminators stay perpendicular to sun-Mercury line
+    mercuryGroup.rotation.y = angleToSun - Math.PI;
 
     // Update light direction
     this.sunComponent.updateLightDirection(mercuryGroup.position);
