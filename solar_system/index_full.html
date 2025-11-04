@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System Simulation - Full</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000000;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Control Panel */
+        #control-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            width: 300px;
+            z-index: 1000;
+        }
+
+        #control-panel h2 {
+            color: #00ff00;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+            padding-bottom: 10px;
+        }
+
+        /* Time Controls */
+        #time-controls {
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            color: #88ff88;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        button {
+            background: rgba(0, 255, 0, 0.1);
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: rgba(0, 255, 0, 0.2);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 5px;
+            background: rgba(0, 255, 0, 0.2);
+            outline: none;
+            border-radius: 5px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            background: #00ff00;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            background: #00ff00;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #speed-display {
+            color: #00ff00;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        #time-display {
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            margin-top: 5px;
+        }
+
+        /* View Controls */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            accent-color: #00ff00;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin-bottom: 0;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        /* Body List */
+        #body-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        #body-list::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        #body-list::-webkit-scrollbar-track {
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        #body-list::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 0, 0.5);
+            border-radius: 5px;
+        }
+
+        .body-item {
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: background 0.2s;
+            font-size: 13px;
+        }
+
+        .body-item:hover {
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .body-item.selected {
+            background: rgba(0, 255, 0, 0.2);
+            border-left: 3px solid #00ff00;
+        }
+
+        /* Info Panel */
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            width: 250px;
+            display: none;
+            z-index: 1000;
+        }
+
+        #info-panel h3 {
+            color: #00ff00;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+            padding-bottom: 5px;
+        }
+
+        #info-panel p {
+            margin: 5px 0;
+            font-size: 13px;
+            color: #ccffcc;
+        }
+
+        /* Stats */
+        #stats {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #00ff00;
+        }
+
+        /* Help */
+        #help {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            font-size: 12px;
+            width: 200px;
+        }
+
+        #help h4 {
+            color: #00ff00;
+            margin-bottom: 8px;
+        }
+
+        #help p {
+            margin: 3px 0;
+            color: #88ff88;
+        }
+
+        /* Loading */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20px;
+            color: #00ff00;
+            z-index: 2000;
+        }
+
+        .spinner {
+            border: 3px solid rgba(0, 255, 0, 0.3);
+            border-top: 3px solid #00ff00;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div>Initializing Solar System...</div>
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Control Panel -->
+    <div id="control-panel">
+        <h2>🪐 Solar System Controls</h2>
+
+        <!-- Time Controls -->
+        <div id="time-controls">
+            <div class="control-group">
+                <label>Time Control</label>
+                <div class="control-row">
+                    <button id="play-pause">⏸</button>
+                    <button id="reset">⟲</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Speed</label>
+                <div class="control-row">
+                    <input type="range" id="speed-slider" min="0" max="100" value="1" step="0.1">
+                    <span id="speed-display">1x</span>
+                </div>
+            </div>
+
+            <div id="time-display">Day: 0</div>
+        </div>
+
+        <!-- View Options -->
+        <div class="control-group">
+            <label>View Options</label>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-orbits" checked>
+                <label for="show-orbits">Show Orbits</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-labels">
+                <label for="show-labels">Show Labels</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-trails">
+                <label for="show-trails">Show Trails</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="scale-mode">
+                <label for="scale-mode">Realistic Scale</label>
+            </div>
+        </div>
+
+        <!-- Celestial Bodies -->
+        <div class="control-group">
+            <label>Celestial Bodies (Click to focus)</label>
+            <div id="body-list">
+                <div class="body-item" data-body="SUN">☀️ Sun</div>
+                <div class="body-item" data-body="MERCURY">☿ Mercury</div>
+                <div class="body-item" data-body="VENUS">♀ Venus</div>
+                <div class="body-item" data-body="EARTH">🌍 Earth</div>
+                <div class="body-item" data-body="MARS">♂ Mars</div>
+                <div class="body-item" data-body="JUPITER">♃ Jupiter</div>
+                <div class="body-item" data-body="SATURN">♄ Saturn</div>
+                <div class="body-item" data-body="URANUS">♅ Uranus</div>
+                <div class="body-item" data-body="NEPTUNE">♆ Neptune</div>
+                <div class="body-item" data-body="PLUTO">♇ Pluto</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Panel -->
+    <div id="info-panel"></div>
+
+    <!-- Stats -->
+    <div id="stats">FPS: 0</div>
+
+    <!-- Help -->
+    <div id="help">
+        <h4>🎮 Controls</h4>
+        <p>🖱️ Left Click: Select body</p>
+        <p>🖱️ Right Click: Rotate view</p>
+        <p>🖱️ Scroll: Zoom</p>
+        <p>⌨️ Space: Pause/Play</p>
+        <p>⌨️ R: Reset time</p>
+        <p>⌨️ 1-9: Focus planets</p>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Application -->
+    <script type="module">
+        import { SolarSystemApp } from './src/SolarSystemApp.js';
+
+        // Initialize application
+        let app = null;
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Hide loading after a short delay
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                }, 1000);
+
+                // Create application
+                app = new SolarSystemApp('container');
+                window.app = app; // Expose for debugging
+
+                // Setup body list clicks
+                document.querySelectorAll('.body-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        // Remove selected from all
+                        document.querySelectorAll('.body-item').forEach(i => i.classList.remove('selected'));
+                        // Add selected to clicked
+                        e.target.classList.add('selected');
+                        // Focus on body
+                        app.focusOnBody(e.target.dataset.body);
+                    });
+                });
+
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case ' ':
+                            e.preventDefault();
+                            app.togglePause();
+                            document.getElementById('play-pause').textContent = app.isPaused ? '▶' : '⏸';
+                            break;
+                        case 'r':
+                            app.reset();
+                            break;
+                        case '1':
+                            app.focusOnBody('MERCURY');
+                            break;
+                        case '2':
+                            app.focusOnBody('VENUS');
+                            break;
+                        case '3':
+                            app.focusOnBody('EARTH');
+                            break;
+                        case '4':
+                            app.focusOnBody('MARS');
+                            break;
+                        case '5':
+                            app.focusOnBody('JUPITER');
+                            break;
+                        case '6':
+                            app.focusOnBody('SATURN');
+                            break;
+                        case '7':
+                            app.focusOnBody('URANUS');
+                            break;
+                        case '8':
+                            app.focusOnBody('NEPTUNE');
+                            break;
+                        case '9':
+                            app.focusOnBody('PLUTO');
+                            break;
+                    }
+                });
+
+                // Update time display
+                setInterval(() => {
+                    if (app) {
+                        const time = app.getCurrentTime();
+                        document.getElementById('time-display').textContent = `Day: ${time.toFixed(1)}`;
+                    }
+                }, 100);
+
+                // FPS counter
+                let lastTime = performance.now();
+                let frames = 0;
+                function updateFPS() {
+                    frames++;
+                    const currentTime = performance.now();
+                    if (currentTime - lastTime >= 1000) {
+                        document.getElementById('stats').textContent = `FPS: ${frames}`;
+                        frames = 0;
+                        lastTime = currentTime;
+                    }
+                    requestAnimationFrame(updateFPS);
+                }
+                updateFPS();
+
+            } catch (error) {
+                console.error('Failed to initialize application:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #ff0000;">
+                        Error: ${error.message}<br>
+                        Check console for details
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

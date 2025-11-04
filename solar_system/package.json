@@ -1,0 +1,13 @@
+{
+  "name": "solar-system-simulation",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Physically accurate solar system simulation with proper coordinate transforms",
+  "main": "src/main.js",
+  "scripts": {
+    "test": "node test_coordinates.js",
+    "start": "python -m http.server 8000"
+  },
+  "author": "",
+  "license": "MIT"
+}

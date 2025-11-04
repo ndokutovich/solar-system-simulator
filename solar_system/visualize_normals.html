@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Visualize Normals and Sun Direction</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; color: #fff; font-family: Arial; }
+    #info {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(0,0,0,0.8); padding: 10px; border-radius: 5px;
+    }
+    button { margin: 5px; padding: 5px 10px; }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h3>Normal vs Sun Direction Test</h3>
+    <button id="mode1">Mode 1: Show Normals as Colors</button>
+    <button id="mode2">Mode 2: Show Sun Direction</button>
+    <button id="mode3">Mode 3: Show Dot Product</button>
+    <button id="pause">Pause</button>
+    <div id="status"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(20, 15, 20);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+    // Light
+    scene.add(new THREE.AmbientLight(0x404040));
+
+    // Sun
+    const sun = new THREE.Mesh(
+      new THREE.SphereGeometry(2, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffff00 })
+    );
+    scene.add(sun);
+
+    // Test shaders
+    const shaders = {
+      // Mode 1: Visualize normals as RGB colors
+      normals: {
+        vertex: `
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normal;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragment: `
+          varying vec3 vNormal;
+          void main() {
+            // Map normal components to RGB
+            vec3 color = normalize(vNormal) * 0.5 + 0.5;
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `
+      },
+
+      // Mode 2: Visualize sun direction
+      sunDir: {
+        vertex: `
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normal;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragment: `
+          uniform vec3 sunDirection;
+          varying vec3 vNormal;
+          void main() {
+            // Show sun direction as color
+            vec3 color = normalize(sunDirection) * 0.5 + 0.5;
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `
+      },
+
+      // Mode 3: Show dot product
+      dotProduct: {
+        vertex: `
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normal;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragment: `
+          uniform vec3 sunDirection;
+          varying vec3 vNormal;
+          void main() {
+            float dot = dot(normalize(vNormal), normalize(sunDirection));
+
+            // Color based on dot product
+            vec3 color;
+            if (dot > 0.0) {
+              // Facing sun: red
+              color = vec3(dot, 0.0, 0.0);
+            } else {
+              // Facing away: blue
+              color = vec3(0.0, 0.0, -dot);
+            }
+
+            // Add reference grid
+            float angle = atan(vNormal.z, vNormal.x);
+            if (abs(fract(angle / 0.5236) - 0.5) < 0.05) { // Every 30 degrees
+              color += vec3(0.0, 0.3, 0.0);
+            }
+
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `
+      }
+    };
+
+    // Create materials
+    const materials = {
+      normals: new THREE.ShaderMaterial({
+        vertexShader: shaders.normals.vertex,
+        fragmentShader: shaders.normals.fragment
+      }),
+      sunDir: new THREE.ShaderMaterial({
+        uniforms: { sunDirection: { value: new THREE.Vector3() } },
+        vertexShader: shaders.sunDir.vertex,
+        fragmentShader: shaders.sunDir.fragment
+      }),
+      dotProduct: new THREE.ShaderMaterial({
+        uniforms: { sunDirection: { value: new THREE.Vector3() } },
+        vertexShader: shaders.dotProduct.vertex,
+        fragmentShader: shaders.dotProduct.fragment
+      })
+    };
+
+    // Mercury
+    const mercury = new THREE.Mesh(
+      new THREE.SphereGeometry(2, 32, 32),
+      materials.dotProduct
+    );
+    mercury.position.set(10, 0, 0);
+    scene.add(mercury);
+
+    // Add axes
+    mercury.add(new THREE.AxesHelper(3));
+
+    // Add normal helpers
+    const normalHelper = new THREE.VertexNormalsHelper(mercury, 1, 0x00ff00, 1);
+    scene.add(normalHelper);
+
+    // Arrow for sun direction
+    const arrowHelper = new THREE.ArrowHelper(
+      new THREE.Vector3(-1, 0, 0),
+      mercury.position,
+      4,
+      0xffff00,
+      1,
+      1
+    );
+    scene.add(arrowHelper);
+
+    // Orbit
+    const orbitPoints = [];
+    for (let i = 0; i <= 100; i++) {
+      const angle = (i / 100) * Math.PI * 2;
+      orbitPoints.push(new THREE.Vector3(Math.cos(angle) * 10, 0, Math.sin(angle) * 10));
+    }
+    scene.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(orbitPoints),
+      new THREE.LineBasicMaterial({ color: 0x444444 })
+    ));
+
+    // State
+    let time = 0;
+    let paused = false;
+    let currentMode = 'dotProduct';
+
+    // UI
+    document.getElementById('mode1').onclick = () => {
+      mercury.material = materials.normals;
+      currentMode = 'normals';
+      updateStatus();
+    };
+
+    document.getElementById('mode2').onclick = () => {
+      mercury.material = materials.sunDir;
+      currentMode = 'sunDir';
+      updateStatus();
+    };
+
+    document.getElementById('mode3').onclick = () => {
+      mercury.material = materials.dotProduct;
+      currentMode = 'dotProduct';
+      updateStatus();
+    };
+
+    document.getElementById('pause').onclick = () => {
+      paused = !paused;
+      document.getElementById('pause').textContent = paused ? 'Play' : 'Pause';
+    };
+
+    function updateStatus() {
+      const status = document.getElementById('status');
+      status.innerHTML = `
+        <br>Current Mode: <b>${currentMode}</b>
+        <br>Mercury Pos: (${mercury.position.x.toFixed(1)}, ${mercury.position.z.toFixed(1)})
+        <br>Sun Dir: (${arrowHelper.direction.x.toFixed(2)}, ${arrowHelper.direction.y.toFixed(2)}, ${arrowHelper.direction.z.toFixed(2)})
+        <br><br>
+        <div style="background: #200;">Mode 1: RGB = XYZ components of normals</div>
+        <div style="background: #020;">Mode 2: RGB = XYZ of sun direction</div>
+        <div style="background: #002;">Mode 3: Red = facing sun, Blue = away</div>
+      `;
+    }
+
+    // Animation
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (!paused) {
+        time += 0.01;
+
+        // Move Mercury
+        const angle = time;
+        mercury.position.x = Math.cos(angle) * 10;
+        mercury.position.z = Math.sin(angle) * 10;
+
+        // Calculate sun direction
+        const toSun = new THREE.Vector3(0, 0, 0).sub(mercury.position).normalize();
+
+        // Update uniforms
+        materials.sunDir.uniforms.sunDirection.value.copy(toSun);
+        materials.dotProduct.uniforms.sunDirection.value.copy(toSun);
+
+        // Update arrow
+        arrowHelper.position.copy(mercury.position);
+        arrowHelper.setDirection(toSun);
+
+        // Update normal helper
+        normalHelper.update();
+      }
+
+      updateStatus();
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
