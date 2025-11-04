@@ -35,7 +35,29 @@
             border-radius: 10px;
             border: 1px solid rgba(0, 255, 0, 0.3);
             width: 300px;
+            max-height: calc(100vh - 20px);
+            overflow-y: auto;
+            overflow-x: hidden;
             z-index: 1000;
+        }
+
+        /* Scrollbar styling */
+        #control-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #control-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #control-panel::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #control-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 0, 0.5);
         }
 
         #control-panel h2 {
@@ -318,6 +340,7 @@
                 <div class="control-row">
                     <button id="play-pause">⏸</button>
                     <button id="reset" title="Reset time and all settings to defaults">⟲</button>
+                    <button id="reverse" title="Reverse time direction">⏮️</button>
                 </div>
             </div>
 
@@ -368,6 +391,28 @@
             </div>
         </div>
 
+        <!-- Camera Views -->
+        <div class="control-group">
+            <label>📷 Camera Presets</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px;">
+                <button id="view-full-system" style="font-size: 11px; padding: 5px;">Full System</button>
+                <button id="view-inner-planets" style="font-size: 11px; padding: 5px;">Inner Planets</button>
+                <button id="view-outer-planets" style="font-size: 11px; padding: 5px;">Outer Planets</button>
+                <button id="view-earth-moon" style="font-size: 11px; padding: 5px;">Earth-Moon</button>
+                <button id="view-jupiter-system" style="font-size: 11px; padding: 5px;">Jupiter System</button>
+                <button id="view-saturn-system" style="font-size: 11px; padding: 5px;">Saturn System</button>
+            </div>
+        </div>
+
+        <!-- Follow Body - Populated dynamically from config -->
+        <div class="control-group">
+            <label>👁️ Follow Body</label>
+            <select id="follow-body" style="width: 100%; padding: 5px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ff00; color: #00ff00; border-radius: 3px; font-size: 12px;">
+                <option value="">Not following</option>
+                <!-- Options populated from celestialBodies.js -->
+            </select>
+        </div>
+
         <!-- View Options -->
         <div class="control-group">
             <label>View Options</label>
@@ -394,6 +439,27 @@
             <div class="checkbox-group">
                 <input type="checkbox" id="scale-mode">
                 <label for="scale-mode">Realistic Scale</label>
+            </div>
+            <!-- TODO: Implement additional display options -->
+            <div class="checkbox-group" style="opacity: 0.5;">
+                <input type="checkbox" id="show-axes" disabled>
+                <label for="show-axes" style="cursor: not-allowed;">Show Axes</label>
+            </div>
+            <div class="checkbox-group" style="opacity: 0.5;">
+                <input type="checkbox" id="show-temperature" disabled>
+                <label for="show-temperature" style="cursor: not-allowed;">Show Temperature</label>
+            </div>
+            <div class="checkbox-group" style="opacity: 0.5;">
+                <input type="checkbox" id="show-terminators" disabled>
+                <label for="show-terminators" style="cursor: not-allowed;">Show Terminators</label>
+            </div>
+            <div class="checkbox-group" style="opacity: 0.5;">
+                <input type="checkbox" id="show-sun-rays" disabled>
+                <label for="show-sun-rays" style="cursor: not-allowed;">Show Sun Rays</label>
+            </div>
+            <div class="checkbox-group" style="opacity: 0.5;">
+                <input type="checkbox" id="show-reflected-light" disabled>
+                <label for="show-reflected-light" style="cursor: not-allowed;">Show Reflected Light</label>
             </div>
         </div>
 
@@ -440,11 +506,49 @@
         </div>
     </div>
 
-    <!-- Info Panel -->
-    <div id="info-panel"></div>
+    <!-- Info Panel - TODO: Populate with selected object data -->
+    <div id="info-panel" style="position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); padding: 15px; border-radius: 10px; border: 1px solid rgba(0, 255, 0, 0.3); width: 280px; font-size: 12px; color: #88ff88; display: none;">
+        <h3 style="color: #00ff00; margin-bottom: 10px; font-size: 16px;">Selected Object</h3>
 
-    <!-- Stats -->
-    <div id="stats">FPS: 0</div>
+        <div style="margin-bottom: 10px;">
+            <div style="color: #ffff00; font-size: 18px; margin-bottom: 5px;" id="selected-name">-</div>
+            <div>Type: <span id="selected-type">-</span></div>
+            <div>Parent: <span id="selected-parent">-</span></div>
+        </div>
+
+        <div style="margin-bottom: 10px; padding-top: 10px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+            <div style="color: #00ff00; margin-bottom: 5px;">Physical Properties</div>
+            <div>Radius: <span id="selected-radius">-</span> km</div>
+            <div>Mass: <span id="selected-mass">-</span></div>
+        </div>
+
+        <div style="margin-bottom: 10px; padding-top: 10px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+            <div style="color: #00ff00; margin-bottom: 5px;">Orbital Elements</div>
+            <div>Period: <span id="selected-orbital-period">-</span></div>
+            <div>Eccentricity: <span id="selected-eccentricity">-</span></div>
+            <div>Inclination: <span id="selected-inclination">-</span></div>
+            <div>Distance: <span id="selected-distance">-</span></div>
+        </div>
+
+        <div style="margin-bottom: 10px; padding-top: 10px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+            <div style="color: #00ff00; margin-bottom: 5px;">Rotation</div>
+            <div>Period: <span id="selected-rotation-period">-</span></div>
+            <div>Axial Tilt: <span id="selected-axial-tilt">-</span></div>
+        </div>
+
+        <div style="padding-top: 10px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+            <div style="color: #00ff00; margin-bottom: 5px;">Temperature</div>
+            <div>Min: <span id="selected-temp-min">-</span></div>
+            <div>Max: <span id="selected-temp-max">-</span></div>
+        </div>
+    </div>
+
+    <!-- Stats - TODO: Add object count and polygon count -->
+    <div id="stats" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0, 0, 0, 0.8); padding: 10px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 11px; color: #00ff00; border: 1px solid rgba(0, 255, 0, 0.3);">
+        <div>FPS: <span id="fps-value">0</span></div>
+        <div style="opacity: 0.5;">Objects: <span id="object-count">-</span></div>
+        <div style="opacity: 0.5;">Polygons: <span id="polygon-count">-</span></div>
+    </div>
 
     <!-- Help -->
     <div id="help">
@@ -576,6 +680,65 @@
                         }
                     });
                 }
+
+                // Reverse button - toggle time direction
+                const reverseBtn = document.getElementById('reverse');
+                if (reverseBtn) {
+                    reverseBtn.addEventListener('click', () => {
+                        app.setTimeSpeed(-app.timeSpeed);
+                        // Update speed display
+                        if (speedDisplay) {
+                            speedDisplay.textContent = `${app.timeSpeed.toFixed(1)}x`;
+                        }
+                        // Update slider value (absolute value)
+                        if (speedSlider) {
+                            speedSlider.value = Math.abs(app.timeSpeed);
+                        }
+                        // Visual feedback on button
+                        reverseBtn.style.backgroundColor = app.timeSpeed < 0 ? 'rgba(255, 0, 0, 0.3)' : 'rgba(0, 255, 0, 0.1)';
+                    });
+                }
+
+                // Camera View Presets
+                document.getElementById('view-full-system')?.addEventListener('click', () => {
+                    app.viewFullSystem();
+                    // Update follow body dropdown
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = '';
+                });
+
+                document.getElementById('view-inner-planets')?.addEventListener('click', () => {
+                    app.viewInnerPlanets();
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = '';
+                });
+
+                document.getElementById('view-outer-planets')?.addEventListener('click', () => {
+                    app.viewOuterPlanets();
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = '';
+                });
+
+                document.getElementById('view-earth-moon')?.addEventListener('click', () => {
+                    app.viewEarthMoon();
+                    // Update follow body dropdown to show Earth
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = 'EARTH';
+                });
+
+                document.getElementById('view-jupiter-system')?.addEventListener('click', () => {
+                    app.viewJupiterSystem();
+                    // Update follow body dropdown to show Jupiter
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = 'JUPITER';
+                });
+
+                document.getElementById('view-saturn-system')?.addEventListener('click', () => {
+                    app.viewSaturnSystem();
+                    // Update follow body dropdown to show Saturn
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = 'SATURN';
+                });
 
                 // Setup checkboxes
                 const scaleMode = document.getElementById('scale-mode');

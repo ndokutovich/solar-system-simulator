@@ -22,6 +22,7 @@ export class SolarSystemApp {
         this.timeSpeed = 1;
         this.isPaused = false;
         this.scaleMode = 'visible'; // 'realistic' or 'visible'
+        this.followBody = null; // Body key to follow with camera
 
         // Scale multipliers for real-time adjustment (per mode)
         this.scaleMultipliers = {
@@ -600,6 +601,123 @@ export class SolarSystemApp {
 
         // Info panel
         this.infoPanel = document.getElementById('info-panel');
+
+        // Populate Follow Body dropdown from config
+        this.populateFollowBodyDropdown();
+
+        // Follow Body dropdown
+        const followBodySelect = document.getElementById('follow-body');
+        if (followBodySelect) {
+            followBodySelect.addEventListener('change', (e) => {
+                this.followBody = e.target.value || null;
+            });
+        }
+    }
+
+    /**
+     * Populate Follow Body dropdown from celestial bodies config
+     * Automatically updates when config changes
+     */
+    populateFollowBodyDropdown() {
+        const select = document.getElementById('follow-body');
+        if (!select) return;
+
+        // Import celestial bodies config
+        import('./config/celestialBodies.js').then(({ CELESTIAL_BODIES }) => {
+            // Clear existing options (except "Not following")
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+
+            // Group bodies by type
+            const groups = {
+                star: [],
+                planet: [],
+                dwarf_planet: [],
+                moon: []
+            };
+
+            // Categorize all bodies
+            for (const [key, data] of Object.entries(CELESTIAL_BODIES)) {
+                if (data.type && groups[data.type] !== undefined) {
+                    groups[data.type].push({ key, data });
+                }
+            }
+
+            // Add stars group (if any)
+            if (groups.star.length > 0) {
+                const starGroup = document.createElement('optgroup');
+                starGroup.label = 'Stars';
+                groups.star.forEach(({ key, data }) => {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = `☀️ ${data.name_en || data.name}`;
+                    starGroup.appendChild(option);
+                });
+                select.appendChild(starGroup);
+            }
+
+            // Add planets group
+            if (groups.planet.length > 0) {
+                const planetGroup = document.createElement('optgroup');
+                planetGroup.label = 'Planets';
+                groups.planet.forEach(({ key, data }) => {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    // Try to find emoji icon from body list or use default
+                    const emoji = this.getBodyEmoji(key);
+                    option.textContent = `${emoji} ${data.name_en || data.name}`;
+                    planetGroup.appendChild(option);
+                });
+                select.appendChild(planetGroup);
+            }
+
+            // Add dwarf planets group (if any)
+            if (groups.dwarf_planet.length > 0) {
+                const dwarfGroup = document.createElement('optgroup');
+                dwarfGroup.label = 'Dwarf Planets';
+                groups.dwarf_planet.forEach(({ key, data }) => {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = `♇ ${data.name_en || data.name}`;
+                    dwarfGroup.appendChild(option);
+                });
+                select.appendChild(dwarfGroup);
+            }
+
+            // Add moons group
+            if (groups.moon.length > 0) {
+                const moonGroup = document.createElement('optgroup');
+                moonGroup.label = 'Moons';
+                groups.moon.forEach(({ key, data }) => {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    const emoji = key === 'MOON' ? '🌙 ' : '';
+                    option.textContent = `${emoji}${data.name_en || data.name}`;
+                    moonGroup.appendChild(option);
+                });
+                select.appendChild(moonGroup);
+            }
+        });
+    }
+
+    /**
+     * Get emoji icon for a celestial body
+     */
+    getBodyEmoji(key) {
+        const emojiMap = {
+            'MERCURY': '☿',
+            'VENUS': '♀',
+            'EARTH': '🌍',
+            'MARS': '♂',
+            'JUPITER': '♃',
+            'SATURN': '♄',
+            'URANUS': '♅',
+            'NEPTUNE': '♆',
+            'PLUTO': '♇',
+            'MOON': '🌙'
+        };
+        return emojiMap[key] || '';
     }
 
     updateBodies(deltaTime) {
@@ -961,6 +1079,18 @@ export class SolarSystemApp {
             this.updateDateDisplay();
         }
 
+        // Follow selected body (if any)
+        if (this.followBody) {
+            const body = this.bodies.get(this.followBody);
+            if (body) {
+                // Follow the container for planets, mesh for moons
+                const targetObject = body.container || body.mesh;
+                if (targetObject) {
+                    this.controls.target.copy(targetObject.position);
+                }
+            }
+        }
+
         // Update controls
         this.controls.update();
 
@@ -983,6 +1113,200 @@ export class SolarSystemApp {
             // Focus on container for planets, mesh for moons
             const targetObject = body.container || body.mesh;
             this.controls.target.copy(targetObject.position);
+
+            // Update info panel
+            this.updateSelectedObjectInfo(bodyKey);
+        }
+    }
+
+    /**
+     * Update Selected Object Info Panel
+     */
+    updateSelectedObjectInfo(bodyKey) {
+        const infoPanel = document.getElementById('info-panel');
+        if (!infoPanel) return;
+
+        const body = this.bodies.get(bodyKey);
+        if (!body) {
+            infoPanel.style.display = 'none';
+            return;
+        }
+
+        const data = body.data;
+        infoPanel.style.display = 'block';
+
+        // Basic info
+        document.getElementById('selected-name').textContent = data.name_en || data.name;
+        document.getElementById('selected-type').textContent = data.type || '-';
+        document.getElementById('selected-parent').textContent = data.parent
+            ? (data.parent.charAt(0).toUpperCase() + data.parent.slice(1))
+            : 'None';
+
+        // Physical properties
+        document.getElementById('selected-radius').textContent = data.radius_km
+            ? data.radius_km.toLocaleString()
+            : '-';
+        document.getElementById('selected-mass').textContent = data.mass_kg
+            ? this.formatMass(data.mass_kg)
+            : '-';
+
+        // Orbital elements
+        if (data.orbital) {
+            const period = data.orbital.period_days;
+            document.getElementById('selected-orbital-period').textContent = period
+                ? this.formatPeriod(period)
+                : '-';
+            document.getElementById('selected-eccentricity').textContent = data.orbital.eccentricity
+                ? data.orbital.eccentricity.toFixed(4)
+                : '-';
+            document.getElementById('selected-inclination').textContent = data.orbital.inclination
+                ? `${data.orbital.inclination.toFixed(2)}°`
+                : '-';
+
+            // Calculate current distance from parent
+            const targetObject = body.container || body.mesh;
+            if (data.parent && data.parent !== 'sun') {
+                const parentBody = this.bodies.get(data.parent.toUpperCase());
+                if (parentBody) {
+                    const parentPos = (parentBody.container || parentBody.mesh).position;
+                    const distance = targetObject.position.distanceTo(parentPos);
+                    document.getElementById('selected-distance').textContent =
+                        `${(distance * 149597870.7).toLocaleString()} km`;
+                }
+            } else {
+                // Distance from sun
+                const distance = targetObject.position.length();
+                document.getElementById('selected-distance').textContent =
+                    `${distance.toFixed(3)} AU`;
+            }
+        } else {
+            document.getElementById('selected-orbital-period').textContent = '-';
+            document.getElementById('selected-eccentricity').textContent = '-';
+            document.getElementById('selected-inclination').textContent = '-';
+            document.getElementById('selected-distance').textContent = '-';
+        }
+
+        // Rotation
+        if (data.rotation) {
+            const rotPeriod = Math.abs(data.rotation.period_days);
+            document.getElementById('selected-rotation-period').textContent =
+                this.formatPeriod(rotPeriod) + (data.rotation.period_days < 0 ? ' (retrograde)' : '');
+            document.getElementById('selected-axial-tilt').textContent = data.rotation.axial_tilt
+                ? `${data.rotation.axial_tilt.toFixed(2)}°`
+                : '-';
+        } else {
+            document.getElementById('selected-rotation-period').textContent = '-';
+            document.getElementById('selected-axial-tilt').textContent = '-';
+        }
+
+        // Temperature
+        if (data.temperature) {
+            document.getElementById('selected-temp-min').textContent = data.temperature.min_c
+                ? `${data.temperature.min_c}°C`
+                : '-';
+            document.getElementById('selected-temp-max').textContent = data.temperature.max_c
+                ? `${data.temperature.max_c}°C`
+                : '-';
+        } else {
+            document.getElementById('selected-temp-min').textContent = '-';
+            document.getElementById('selected-temp-max').textContent = '-';
+        }
+    }
+
+    /**
+     * Format mass in scientific notation
+     */
+    formatMass(mass) {
+        if (mass >= 1e24) {
+            return `${(mass / 1e24).toFixed(2)} × 10²⁴ kg`;
+        } else if (mass >= 1e20) {
+            return `${(mass / 1e20).toFixed(2)} × 10²⁰ kg`;
+        } else {
+            return `${mass.toExponential(2)} kg`;
+        }
+    }
+
+    /**
+     * Format orbital/rotation period
+     */
+    formatPeriod(days) {
+        if (days < 1) {
+            const hours = days * 24;
+            return `${hours.toFixed(2)} hours`;
+        } else if (days < 365) {
+            return `${days.toFixed(2)} days`;
+        } else {
+            const years = days / 365.25;
+            return `${years.toFixed(2)} years`;
+        }
+    }
+
+    /**
+     * Camera View Presets
+     */
+    viewFullSystem() {
+        // View entire solar system from above
+        this.camera.position.set(0, 500, 500);
+        this.controls.target.set(0, 0, 0);
+        this.followBody = null; // Stop following any body
+    }
+
+    viewInnerPlanets() {
+        // Focus on Mercury, Venus, Earth, Mars
+        this.camera.position.set(0, 30, 30);
+        this.controls.target.set(0, 0, 0);
+        this.followBody = null;
+    }
+
+    viewOuterPlanets() {
+        // Focus on Jupiter, Saturn, Uranus, Neptune
+        this.camera.position.set(0, 400, 400);
+        this.controls.target.set(0, 0, 0);
+        this.followBody = null;
+    }
+
+    viewEarthMoon() {
+        // Close-up of Earth-Moon system
+        const earth = this.bodies.get('EARTH');
+        if (earth) {
+            const earthPos = (earth.container || earth.mesh).position;
+            this.camera.position.set(
+                earthPos.x + 5,
+                earthPos.y + 3,
+                earthPos.z + 5
+            );
+            this.controls.target.copy(earthPos);
+            this.followBody = 'EARTH'; // Follow Earth
+        }
+    }
+
+    viewJupiterSystem() {
+        // Jupiter and its Galilean moons
+        const jupiter = this.bodies.get('JUPITER');
+        if (jupiter) {
+            const jupiterPos = (jupiter.container || jupiter.mesh).position;
+            this.camera.position.set(
+                jupiterPos.x + 20,
+                jupiterPos.y + 10,
+                jupiterPos.z + 20
+            );
+            this.controls.target.copy(jupiterPos);
+            this.followBody = 'JUPITER'; // Follow Jupiter
+        }
+    }
+
+    viewSaturnSystem() {
+        // Saturn and its rings
+        const saturn = this.bodies.get('SATURN');
+        if (saturn) {
+            const saturnPos = (saturn.container || saturn.mesh).position;
+            this.camera.position.set(
+                saturnPos.x + 25,
+                saturnPos.y + 15,
+                saturnPos.z + 25
+            );
+            this.controls.target.copy(saturnPos);
+            this.followBody = 'SATURN'; // Follow Saturn
         }
     }
 
