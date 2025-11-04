@@ -23,9 +23,32 @@ export class SolarSystemApp {
         this.isPaused = false;
         this.scaleMode = 'visible'; // 'realistic' or 'visible'
 
+        // Scale multipliers for real-time adjustment (per mode)
+        this.scaleMultipliers = {
+            realistic: {
+                sun: 1.0,
+                planet: 1.0,
+                moon: 10.0,  // Default to 10x for better moon visibility
+                moonOrbit: 1.0
+            },
+            visible: {
+                sun: 1.0,
+                planet: 1.0,
+                moon: 10.0,  // Default to 10x for better moon visibility
+                moonOrbit: 1.0
+            }
+        };
+
         // Celestial bodies
         this.bodies = new Map();
         this.trails = new Map();
+        this.labels = new Map();
+
+        // Visibility flags
+        this.showOrbits = true;
+        this.showLabels = false;
+        this.showTrails = false;
+        this.showSunGlow = true;
 
         // Three.js components
         this.scene = null;
@@ -154,18 +177,33 @@ export class SolarSystemApp {
             opacity: 0.3
         });
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        glow.name = 'SunGlow'; // Name it so we can find and update it
+        glow.visible = this.showSunGlow; // Respect initial visibility setting
         sun.add(glow);
 
         this.scene.add(sun);
         this.bodies.set('SUN', {
             mesh: sun,
+            glow: glow, // Store reference to glow sphere
             data: sunData,
             type: 'star'
         });
+
+        // Create label for Sun
+        this.createLabel('SUN', sunData.name_en || 'Sun', sun);
     }
 
     createCelestialBody(key, bodyData) {
-        const radius = this.getScaledRadius(bodyData.radius_km, bodyData.type);
+        // Get parent radius if this is a moon
+        let parentRadiusKm = null;
+        if (bodyData.parent && bodyData.parent !== 'sun') {
+            const parentKey = bodyData.parent.toUpperCase();
+            if (CELESTIAL_BODIES[parentKey]) {
+                parentRadiusKm = CELESTIAL_BODIES[parentKey].radius_km;
+            }
+        }
+
+        const radius = this.getScaledRadius(bodyData.radius_km, bodyData.type, parentRadiusKm);
         const geometry = new THREE.SphereGeometry(radius, 32, 16);
 
         // Determine material based on body type and data
@@ -182,27 +220,85 @@ export class SolarSystemApp {
             });
         }
 
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = bodyData.name;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        // Create container for planets that have moons (to separate rotation from orbit lines)
+        const isParentOfMoons = !bodyData.parent || bodyData.parent === 'sun';
+        let container = null;
+        let mesh = null;
+
+        if (isParentOfMoons) {
+            // Create a container that doesn't rotate
+            container = new THREE.Group();
+            container.name = bodyData.name + '_container';
+
+            // Create the actual planet mesh that will rotate
+            mesh = new THREE.Mesh(geometry, material);
+            mesh.name = bodyData.name;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            // Add mesh to container
+            container.add(mesh);
+        } else {
+            // Moons don't need containers
+            mesh = new THREE.Mesh(geometry, material);
+            mesh.name = bodyData.name;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+        }
 
         // Create orbit visualization
         if (bodyData.orbital) {
-            const orbit = this.createOrbitLine(bodyData.orbital);
-            this.scene.add(orbit);
+            const orbit = this.createOrbitLine(bodyData.orbital, bodyData.parent);
+
+            // CRITICAL: Add moon orbits to parent CONTAINERS (not rotating meshes)
+            if (bodyData.parent && bodyData.parent !== 'sun') {
+                // Moon orbit should be child of parent's container
+                const parentBody = this.bodies.get(bodyData.parent.toUpperCase());
+                if (parentBody && parentBody.container) {
+                    // Add orbit to parent's container - moves with parent but doesn't rotate
+                    parentBody.container.add(orbit);
+                } else {
+                    // Parent not created yet, store for later
+                    if (!this.pendingMoonOrbits) this.pendingMoonOrbits = new Map();
+                    this.pendingMoonOrbits.set(key, { orbit, parent: bodyData.parent });
+                }
+            } else {
+                // Planet orbits go in the scene at origin (sun position)
+                this.scene.add(orbit);
+            }
         }
 
         // Add to scene
-        this.scene.add(mesh);
+        if (container) {
+            this.scene.add(container);
+        } else {
+            this.scene.add(mesh);
+        }
 
         // Store in bodies map
         this.bodies.set(key, {
             mesh: mesh,
+            container: container, // Store container reference
             data: bodyData,
             type: bodyData.type,
             material: material
         });
+
+        // Create label for this body
+        this.createLabel(key, bodyData.name_en || bodyData.name, container || mesh);
+
+        // Check if any pending moon orbits need this planet as parent
+        if (this.pendingMoonOrbits) {
+            for (const [moonKey, pending] of this.pendingMoonOrbits) {
+                if (pending.parent.toUpperCase() === key) {
+                    // Now we can add the moon orbit to parent's container
+                    if (container) {
+                        container.add(pending.orbit);
+                    }
+                    this.pendingMoonOrbits.delete(moonKey);
+                }
+            }
+        }
     }
 
     createTemperatureMaterial(bodyData) {
@@ -277,34 +373,106 @@ export class SolarSystemApp {
         });
     }
 
-    createOrbitLine(orbital) {
+    createOrbitLine(orbital, parent) {
         const points = [];
         const segments = 128;
 
-        for (let i = 0; i <= segments; i++) {
-            const angle = (i / segments) * Math.PI * 2;
-            const position = calculateOrbitalPosition(
-                orbital.semi_major_axis_au || orbital.semi_major_axis_km / 149597870.7,
-                orbital.eccentricity || 0,
-                angle
-            );
+        // Determine if this is a moon orbit
+        const isMoonOrbit = parent && parent !== 'sun';
 
-            const scale = this.getScaleForDistance();
-            points.push(new THREE.Vector3(
-                position.x * scale,
-                position.z * scale, // Swap Y and Z for Three.js
-                -position.y * scale
-            ));
+        // Calculate proper scale for orbits - MUST match moon position calculation exactly
+        let orbitScale;
+        let semiMajorAxis;
+
+        if (isMoonOrbit) {
+            // For moons, convert km to AU (same as position calculation)
+            semiMajorAxis = orbital.semi_major_axis_km / 149597870.7;
+
+            // Calculate same dynamic scale as moon position
+            const parentBody = this.bodies.get(parent.toUpperCase());
+            if (parentBody && parentBody.mesh) {
+                const parentRadius = parentBody.mesh.geometry.parameters.radius;
+                // Need to estimate moon radius (use minimum for orbit calculation)
+                const moonRadius = 0.0005; // Minimum moon size
+                const minSafeDistance = (parentRadius + moonRadius) * 1.5;
+
+                // Same scale calculation as position with multiplier
+                if (this.scaleMode === 'realistic') {
+                    const baseScale = 10 * this.scaleMultipliers[this.scaleMode].moonOrbit;
+                    const neededScale = minSafeDistance / semiMajorAxis;
+                    orbitScale = Math.max(baseScale, neededScale);
+                } else {
+                    const baseScale = 20 * this.scaleMultipliers[this.scaleMode].moonOrbit;
+                    const neededScale = minSafeDistance * 2 / semiMajorAxis;
+                    orbitScale = Math.max(baseScale, neededScale);
+                }
+            } else {
+                // Fallback if parent not found
+                orbitScale = (this.scaleMode === 'realistic' ? 10 : 20) * this.scaleMultipliers[this.scaleMode].moonOrbit;
+            }
+        } else {
+            // Planet orbits use AU directly
+            semiMajorAxis = orbital.semi_major_axis_au || orbital.semi_major_axis_km / 149597870.7;
+            orbitScale = this.getScaleForDistance();
+        }
+
+        // For planets, use full orbital elements to match actual path
+        if (!isMoonOrbit) {
+            // Calculate orbit with full orbital elements
+            const meanMotion = (2 * Math.PI) / (orbital.period_days || 365.25);
+
+            for (let i = 0; i <= segments; i++) {
+                // Create a fake time that covers one complete orbit
+                const fakeTime = (i / segments) * (orbital.period_days || 365.25);
+
+                // Use same calculation as planet position
+                const position = calculateBodyPosition({
+                    semiMajorAxis: semiMajorAxis,
+                    eccentricity: orbital.eccentricity || 0,
+                    inclination: (orbital.inclination || 0) * Math.PI / 180,
+                    longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
+                    argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
+                    orbitalPeriod: orbital.period_days || 365.25
+                }, fakeTime);
+
+                points.push(new THREE.Vector3(
+                    position.x * orbitScale,
+                    position.z * orbitScale, // Swap Y and Z for Three.js
+                    -position.y * orbitScale
+                ));
+            }
+        } else {
+            // Moons also use full calculation for accuracy
+            for (let i = 0; i <= segments; i++) {
+                const fakeTime = (i / segments) * (orbital.period_days || 27.3);
+
+                const position = calculateBodyPosition({
+                    semiMajorAxis: semiMajorAxis,
+                    eccentricity: orbital.eccentricity || 0,
+                    inclination: (orbital.inclination || 0) * Math.PI / 180,
+                    longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
+                    argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
+                    orbitalPeriod: orbital.period_days || 27.3
+                }, fakeTime);
+
+                points.push(new THREE.Vector3(
+                    position.x * orbitScale,
+                    position.z * orbitScale, // Swap Y and Z for Three.js
+                    -position.y * orbitScale
+                ));
+            }
         }
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         const material = new THREE.LineBasicMaterial({
-            color: 0x444444,
+            color: isMoonOrbit ? 0x88ff88 : 0xffffff,  // Green for moons, white for planets
             transparent: true,
-            opacity: 0.3
+            opacity: isMoonOrbit ? 0.6 : 0.4
         });
 
-        return new THREE.Line(geometry, material);
+        const orbitLine = new THREE.Line(geometry, material);
+
+        return orbitLine;
     }
 
     getBodyColor(key, bodyData) {
@@ -325,22 +493,45 @@ export class SolarSystemApp {
         return colors[key] || 0x888888;
     }
 
-    getScaledRadius(radiusKm, type) {
+    getScaledRadius(radiusKm, type, parentRadiusKm = null) {
+        let scale;
+
         if (this.scaleMode === 'realistic') {
-            // Realistic scale (1:1,000,000 km)
-            return radiusKm / 1000000;
-        } else {
-            // Visible scale with logarithmic scaling
-            const baseScale = 0.001;
-            const logScale = Math.log10(radiusKm + 1) * baseScale;
-
-            // Special handling for sun
-            if (type === 'star') {
-                return logScale * 0.5; // Make sun smaller for visibility
+            // Realistic scale with adjustments for visibility
+            if (type === 'moon') {
+                // Moons should maintain proper ratio but have minimum size
+                const baseScale = radiusKm / 1000000; // Same scale as planets
+                const minMoonSize = 0.0005; // Minimum visible size
+                // Use actual scale but ensure minimum visibility
+                scale = Math.max(baseScale, minMoonSize) * this.scaleMultipliers[this.scaleMode].moon;
+            } else if (type === 'star') {
+                // Sun at reduced scale to fit scene
+                scale = (radiusKm / 5000000) * this.scaleMultipliers[this.scaleMode].sun;
+            } else {
+                // Planets at realistic scale
+                scale = (radiusKm / 1000000) * this.scaleMultipliers[this.scaleMode].planet;
             }
-
-            return logScale;
+        } else {
+            // Visible scale - relative sizing
+            if (type === 'moon' && parentRadiusKm) {
+                // Moon size relative to parent's BASE size (not affected by planet multiplier)
+                const ratio = radiusKm / parentRadiusKm;
+                const parentBaseScale = Math.log10(parentRadiusKm + 1) * 0.001; // No planet multiplier here!
+                // Keep relative size but ensure visibility
+                scale = Math.max(parentBaseScale * ratio * 2, 0.0002) * this.scaleMultipliers[this.scaleMode].moon;
+            } else if (type === 'star') {
+                // Logarithmic but smaller
+                scale = Math.log10(radiusKm + 1) * 0.0003 * this.scaleMultipliers[this.scaleMode].sun;
+            } else if (type === 'moon') {
+                // Fallback for moons without parent reference
+                scale = Math.log10(radiusKm + 1) * 0.0008 * this.scaleMultipliers[this.scaleMode].moon;
+            } else {
+                // Planets - standard logarithmic
+                scale = Math.log10(radiusKm + 1) * 0.001 * this.scaleMultipliers[this.scaleMode].planet;
+            }
         }
+
+        return scale;
     }
 
     getScaleForDistance() {
@@ -415,31 +606,90 @@ export class SolarSystemApp {
         for (const [key, body] of this.bodies) {
             if (key === 'SUN') continue;
 
-            const { mesh, data, material } = body;
+            const { mesh, container, data, material } = body;
 
             // Update orbital position
             if (data.orbital) {
                 const orbital = data.orbital;
-                const position = calculateBodyPosition({
-                    semiMajorAxis: orbital.semi_major_axis_au || orbital.semi_major_axis_km / 149597870.7,
-                    eccentricity: orbital.eccentricity || 0,
-                    inclination: (orbital.inclination || 0) * Math.PI / 180,
-                    longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
-                    argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
-                    orbitalPeriod: orbital.period_days || 365.25
-                }, this.time);
 
-                const scale = this.getScaleForDistance();
-                mesh.position.set(
-                    position.x * scale,
-                    position.z * scale, // Swap Y and Z for Three.js
-                    -position.y * scale
-                );
+                // Check if this is a moon (has a parent that isn't sun)
+                if (data.parent && data.parent !== 'sun') {
+                    // Calculate position relative to parent
+                    const parentBody = this.bodies.get(data.parent.toUpperCase());
+                    if (parentBody) {
+                        const position = calculateBodyPosition({
+                            semiMajorAxis: orbital.semi_major_axis_km / 149597870.7, // Convert km to AU for moons
+                            eccentricity: orbital.eccentricity || 0,
+                            inclination: (orbital.inclination || 0) * Math.PI / 180,
+                            longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
+                            argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
+                            orbitalPeriod: orbital.period_days || 365.25
+                        }, this.time);
+
+                        // Scale for moon distances
+                        // For realistic mode: use actual astronomical proportions
+                        // For visible mode: compress for visibility
+                        const parentRadius = parentBody.mesh.geometry.parameters.radius;
+
+                        // Moon orbits need smart scaling
+                        // The position is already in AU from calculateBodyPosition
+                        // Calculate minimum safe distance from parent
+                        const minSafeDistance = (parentRadius + mesh.geometry.parameters.radius) * 1.5;
+
+                        // Calculate actual orbit distance in AU
+                        const orbitAU = orbital.semi_major_axis_km / 149597870.7;
+
+                        // Calculate scale that ensures moon clears parent with multiplier
+                        let moonOrbitScale;
+                        if (this.scaleMode === 'realistic') {
+                            // Ensure minimum clearance from parent
+                            const baseScale = 10 * this.scaleMultipliers[this.scaleMode].moonOrbit;
+                            const neededScale = minSafeDistance / orbitAU;
+                            moonOrbitScale = Math.max(baseScale, neededScale);
+                        } else {
+                            // Visible mode - even more clearance
+                            const baseScale = 20 * this.scaleMultipliers[this.scaleMode].moonOrbit;
+                            const neededScale = minSafeDistance * 2 / orbitAU;
+                            moonOrbitScale = Math.max(baseScale, neededScale);
+                        }
+
+                        // Position relative to parent's container (or mesh if no container)
+                        const parentObject = parentBody.container || parentBody.mesh;
+                        mesh.position.set(
+                            parentObject.position.x + position.x * moonOrbitScale,
+                            parentObject.position.y + position.z * moonOrbitScale,
+                            parentObject.position.z - position.y * moonOrbitScale
+                        );
+                    }
+                } else {
+                    // Planet orbiting the sun
+                    const position = calculateBodyPosition({
+                        semiMajorAxis: orbital.semi_major_axis_au || orbital.semi_major_axis_km / 149597870.7,
+                        eccentricity: orbital.eccentricity || 0,
+                        inclination: (orbital.inclination || 0) * Math.PI / 180,
+                        longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
+                        argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
+                        orbitalPeriod: orbital.period_days || 365.25
+                    }, this.time);
+
+                    const scale = this.getScaleForDistance();
+
+                    // Move the container for planets (which holds orbit lines)
+                    // Move the mesh directly for moons
+                    const objectToMove = container || mesh;
+                    objectToMove.position.set(
+                        position.x * scale,
+                        position.z * scale, // Swap Y and Z for Three.js
+                        -position.y * scale
+                    );
+                }
             }
 
-            // Update rotation
+            // Update rotation (only rotates the mesh, not container)
             if (data.rotation) {
                 const rotation = calculateBodyRotation(data.rotation, this.time, 0, data.orbital?.period_days || 365.25);
+                // Always rotate the mesh, never the container
+                // This way orbit lines stay fixed while planet spins
                 mesh.rotation.y = rotation.angle;
             }
 
@@ -457,6 +707,9 @@ export class SolarSystemApp {
                 material.uniforms.sunDirection.value.copy(sunDirLocal);
             }
         }
+
+        // Moon orbits are now children of their parent planets
+        // They move automatically with their parents - no update needed!
     }
 
     updateScale() {
@@ -464,15 +717,47 @@ export class SolarSystemApp {
         // This is a simplified approach - in production you'd update existing geometries
         this.clearBodies();
         this.initBodies();
+
+        // Force immediate position update to ensure everything is placed correctly
+        this.updateBodies(0);
     }
 
     clearBodies() {
         for (const [key, body] of this.bodies) {
-            this.scene.remove(body.mesh);
-            if (body.mesh.geometry) body.mesh.geometry.dispose();
-            if (body.mesh.material) body.mesh.material.dispose();
+            // Remove the container if it exists (for planets), otherwise remove mesh directly
+            if (body.container) {
+                // Dispose all children in container (mesh, orbit lines, etc.)
+                body.container.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+                this.scene.remove(body.container);
+            } else {
+                // For moons without containers
+                this.scene.remove(body.mesh);
+                if (body.mesh.geometry) body.mesh.geometry.dispose();
+                if (body.mesh.material) body.mesh.material.dispose();
+            }
+
+            // Clean up sun glow if present
+            if (body.glow) {
+                if (body.glow.geometry) body.glow.geometry.dispose();
+                if (body.glow.material) body.glow.material.dispose();
+            }
         }
         this.bodies.clear();
+
+        // Also clear any standalone orbit lines (planet orbits)
+        this.scene.children.filter(child => child.type === 'Line').forEach(line => {
+            if (line.geometry) line.geometry.dispose();
+            if (line.material) line.material.dispose();
+            this.scene.remove(line);
+        });
+
+        // Clear pending moon orbits
+        if (this.pendingMoonOrbits) {
+            this.pendingMoonOrbits.clear();
+        }
     }
 
     onMouseClick(event) {
@@ -570,6 +855,9 @@ export class SolarSystemApp {
         // Update physics
         this.updateBodies(0.01); // Fixed timestep for now
 
+        // Update trails
+        this.updateTrails();
+
         // Update controls
         this.controls.update();
 
@@ -589,7 +877,9 @@ export class SolarSystemApp {
     focusOnBody(bodyKey) {
         const body = this.bodies.get(bodyKey);
         if (body) {
-            this.controls.target.copy(body.mesh.position);
+            // Focus on container for planets, mesh for moons
+            const targetObject = body.container || body.mesh;
+            this.controls.target.copy(targetObject.position);
         }
     }
 
@@ -607,6 +897,227 @@ export class SolarSystemApp {
     reset() {
         this.time = 0;
         this.updateBodies(0);
+    }
+
+    /**
+     * Update scale multipliers and refresh all bodies
+     */
+    updateScaleMultiplier(type, value) {
+        this.scaleMultipliers[this.scaleMode][type] = value;
+
+        // Update all body scales
+        for (const [key, body] of this.bodies) {
+            const { mesh, data } = body;
+
+            // Skip if no mesh or geometry
+            if (!mesh || !mesh.geometry) continue;
+
+            // Get parent radius if this is a moon
+            let parentRadiusKm = null;
+            if (data.parent && data.parent !== 'sun') {
+                const parentKey = data.parent.toUpperCase();
+                if (CELESTIAL_BODIES[parentKey]) {
+                    parentRadiusKm = CELESTIAL_BODIES[parentKey].radius_km;
+                }
+            }
+
+            // Calculate new scale
+            const newRadius = this.getScaledRadius(data.radius_km, data.type, parentRadiusKm);
+
+            // Update geometry
+            mesh.geometry.dispose();
+            mesh.geometry = new THREE.SphereGeometry(newRadius, 32, 16);
+
+            // Special case: Update sun's glow sphere too
+            if (key === 'SUN' && body.glow) {
+                body.glow.geometry.dispose();
+                body.glow.geometry = new THREE.SphereGeometry(newRadius * 1.5, 32, 16);
+            }
+        }
+
+        // For orbit updates, we need to recreate them
+        // This is more complex, so for now we'll need to refresh the scene
+        if (type === 'moonOrbit') {
+            console.log('Moon orbit scale changed - may need to reload for full effect');
+        }
+    }
+
+    /**
+     * Get current scale multipliers
+     */
+    getScaleMultipliers() {
+        return { ...this.scaleMultipliers[this.scaleMode] };
+    }
+
+    /**
+     * Create text label for a celestial body
+     */
+    createLabel(key, name, parentObject) {
+        // Create canvas for text
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 256;
+        canvas.height = 64;
+
+        // Ensure transparent background
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw text
+        context.fillStyle = '#00ff00';
+        context.font = 'Bold 24px Arial';
+        context.textAlign = 'center';
+        context.fillText(name, 128, 40);
+
+        // Create texture from canvas with explicit alpha handling
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.format = THREE.RGBAFormat;
+        const spriteMaterial = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthWrite: false
+        });
+        const sprite = new THREE.Sprite(spriteMaterial);
+
+        // Scale and position - closer to object
+        sprite.scale.set(2, 0.5, 1);
+        sprite.position.set(0, 0.4, 0); // Slightly above the object
+
+        // Add to parent
+        parentObject.add(sprite);
+
+        // Initially hidden
+        sprite.visible = this.showLabels;
+
+        // Store reference
+        this.labels.set(key, sprite);
+    }
+
+    /**
+     * Toggle orbit visibility
+     */
+    toggleOrbits(visible) {
+        this.showOrbits = visible;
+
+        // Toggle all orbit lines
+        this.scene.traverse((child) => {
+            if (child.type === 'Line') {
+                child.visible = visible;
+            }
+        });
+
+        // Toggle moon orbit lines (children of containers)
+        for (const [key, body] of this.bodies) {
+            if (body.container) {
+                body.container.traverse((child) => {
+                    if (child.type === 'Line') {
+                        child.visible = visible;
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Toggle label visibility
+     */
+    toggleLabels(visible) {
+        this.showLabels = visible;
+        for (const [key, label] of this.labels) {
+            label.visible = visible;
+        }
+    }
+
+    /**
+     * Toggle trail visibility
+     */
+    toggleTrails(visible) {
+        this.showTrails = visible;
+
+        if (visible && this.trails.size === 0) {
+            // Create trails for all bodies
+            for (const [key, body] of this.bodies) {
+                if (key !== 'SUN') {
+                    this.createTrail(key);
+                }
+            }
+        } else {
+            // Toggle visibility of existing trails
+            for (const [key, trail] of this.trails) {
+                trail.line.visible = visible;
+            }
+        }
+    }
+
+    /**
+     * Toggle sun glow visibility
+     */
+    toggleSunGlow(visible) {
+        this.showSunGlow = visible;
+        const sunBody = this.bodies.get('SUN');
+        if (sunBody && sunBody.glow) {
+            sunBody.glow.visible = visible;
+        }
+    }
+
+    /**
+     * Create trail for a body
+     */
+    createTrail(key) {
+        const maxPoints = 500; // Number of points in trail
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(maxPoints * 3);
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.LineBasicMaterial({
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.5
+        });
+
+        const trail = new THREE.Line(geometry, material);
+        trail.visible = this.showTrails;
+        this.scene.add(trail);
+
+        this.trails.set(key, {
+            line: trail,
+            positions: [],
+            maxPoints: maxPoints
+        });
+    }
+
+    /**
+     * Update trails
+     */
+    updateTrails() {
+        if (!this.showTrails) return;
+
+        for (const [key, body] of this.bodies) {
+            if (key === 'SUN') continue;
+
+            const trail = this.trails.get(key);
+            if (!trail) continue;
+
+            // Get current position
+            const object = body.container || body.mesh;
+            const pos = object.position.clone();
+
+            // Add to trail
+            trail.positions.push(pos);
+            if (trail.positions.length > trail.maxPoints) {
+                trail.positions.shift();
+            }
+
+            // Update geometry
+            const positions = trail.line.geometry.attributes.position.array;
+            for (let i = 0; i < trail.positions.length; i++) {
+                positions[i * 3] = trail.positions[i].x;
+                positions[i * 3 + 1] = trail.positions[i].y;
+                positions[i * 3 + 2] = trail.positions[i].z;
+            }
+
+            trail.line.geometry.attributes.position.needsUpdate = true;
+            trail.line.geometry.setDrawRange(0, trail.positions.length);
+        }
     }
 }
 

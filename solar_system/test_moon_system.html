@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Moon System Test</title>
+    <style>
+        body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+        #info {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(0,0,0,0.9); padding: 15px;
+            border: 2px solid #0f0; max-width: 400px;
+        }
+        button {
+            background: #006600; color: #0f0; border: 1px solid #0f0;
+            padding: 5px 10px; margin: 5px; cursor: pointer;
+        }
+        button:hover { background: #009900; }
+        .system { margin: 10px 0; padding: 5px; border-left: 3px solid #0f0; }
+        .moon { margin-left: 20px; color: #99f; }
+        .scale-info { color: #ff0; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>🌙 Moon System Test</h3>
+        <div>
+            <button onclick="switchMode('visible')">Visible Scale</button>
+            <button onclick="switchMode('realistic')">Realistic Scale</button>
+            <button onclick="focusSystem('earth')">Earth-Moon</button>
+            <button onclick="focusSystem('jupiter')">Jupiter</button>
+            <button onclick="focusSystem('saturn')">Saturn</button>
+        </div>
+        <div id="current-mode" class="scale-info">Mode: Visible</div>
+        <div id="systems"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script type="module">
+        import { CELESTIAL_BODIES } from './src/config/celestialBodies.js';
+        import { MoonSystemManager } from './src/MoonSystemManager.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.001,
+            1000
+        );
+        camera.position.set(20, 10, 20);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(0, 0, 0);
+        scene.add(pointLight);
+
+        // Moon system manager
+        let moonManager = new MoonSystemManager(scene, 'visible');
+
+        // Create bodies
+        const bodies = new Map();
+        let focusTarget = null;
+
+        function createBodies() {
+            // Clear existing
+            for (const [key, data] of bodies) {
+                scene.remove(data.mesh);
+                if (data.orbitGroup) scene.remove(data.orbitGroup);
+            }
+            bodies.clear();
+
+            // Create Sun (simplified)
+            const sunGeometry = new THREE.SphereGeometry(2, 32, 16);
+            const sunMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffff00,
+                emissive: 0xffff00
+            });
+            const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+            scene.add(sun);
+            bodies.set('SUN', { mesh: sun, data: CELESTIAL_BODIES.SUN });
+
+            // Create test systems
+            const testSystems = [
+                // Earth-Moon system
+                { planet: 'EARTH', moons: ['MOON'] },
+                // Mars system
+                { planet: 'MARS', moons: ['PHOBOS', 'DEIMOS'] },
+                // Jupiter system (major moons)
+                { planet: 'JUPITER', moons: ['IO', 'EUROPA', 'GANYMEDE', 'CALLISTO'] },
+                // Saturn system (selected moons)
+                { planet: 'SATURN', moons: ['MIMAS', 'ENCELADUS', 'TITAN'] },
+            ];
+
+            testSystems.forEach(system => {
+                const planetData = CELESTIAL_BODIES[system.planet];
+                if (!planetData) return;
+
+                // Create planet
+                const planetRadius = moonManager.getBodyScale(planetData);
+                const planetGeometry = new THREE.SphereGeometry(planetRadius, 32, 16);
+                const planetMaterial = new THREE.MeshPhongMaterial({
+                    color: getPlanetColor(system.planet)
+                });
+                const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+
+                // Position planet
+                const orbitRadius = 10 + Math.random() * 20;
+                const angle = Math.random() * Math.PI * 2;
+                planet.position.set(
+                    Math.cos(angle) * orbitRadius,
+                    0,
+                    Math.sin(angle) * orbitRadius
+                );
+
+                scene.add(planet);
+                bodies.set(system.planet, {
+                    mesh: planet,
+                    data: planetData,
+                    orbitRadius: orbitRadius
+                });
+
+                // Register with moon manager
+                moonManager.registerBody(system.planet, planetData, planet);
+
+                // Create moons
+                system.moons.forEach((moonKey, index) => {
+                    const moonData = CELESTIAL_BODIES[moonKey];
+                    if (!moonData) return;
+
+                    // Create moon
+                    const moonRadius = moonManager.getBodyScale(moonData);
+                    const moonGeometry = new THREE.SphereGeometry(moonRadius, 16, 8);
+                    const moonMaterial = new THREE.MeshPhongMaterial({
+                        color: 0xcccccc
+                    });
+                    const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+
+                    // Position moon relative to planet
+                    const moonOrbitRadius = planetRadius * (3 + index * 2);
+                    const moonAngle = (index / system.moons.length) * Math.PI * 2;
+                    moon.position.set(
+                        planet.position.x + Math.cos(moonAngle) * moonOrbitRadius,
+                        planet.position.y,
+                        planet.position.z + Math.sin(moonAngle) * moonOrbitRadius
+                    );
+
+                    scene.add(moon);
+                    bodies.set(moonKey, {
+                        mesh: moon,
+                        data: moonData,
+                        parent: system.planet
+                    });
+
+                    // Register with moon manager
+                    moonManager.registerBody(moonKey, moonData, moon);
+
+                    // Create moon orbit (as child of planet)
+                    const orbitPoints = [];
+                    for (let i = 0; i <= 64; i++) {
+                        const a = (i / 64) * Math.PI * 2;
+                        orbitPoints.push(new THREE.Vector3(
+                            Math.cos(a) * moonOrbitRadius,
+                            0,
+                            Math.sin(a) * moonOrbitRadius
+                        ));
+                    }
+                    const orbitGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
+                    const orbitMaterial = new THREE.LineBasicMaterial({
+                        color: 0x666666,
+                        transparent: true,
+                        opacity: 0.5
+                    });
+                    const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
+
+                    // Add orbit as child of planet!
+                    planet.add(orbitLine);
+                });
+            });
+
+            updateInfo();
+        }
+
+        function getPlanetColor(key) {
+            const colors = {
+                EARTH: 0x4444ff,
+                MARS: 0xff4444,
+                JUPITER: 0xcc9966,
+                SATURN: 0xffcc99
+            };
+            return colors[key] || 0x888888;
+        }
+
+        function updateInfo() {
+            const systemsDiv = document.getElementById('systems');
+            let html = '<h4>Systems:</h4>';
+
+            for (const [key, body] of bodies) {
+                if (body.data && body.data.type === 'planet') {
+                    const children = [];
+                    for (const [moonKey, moon] of bodies) {
+                        if (moon.parent === key) {
+                            children.push(moonKey);
+                        }
+                    }
+
+                    if (children.length > 0) {
+                        html += `<div class="system">`;
+                        html += `<strong>${key}</strong> (r=${body.mesh.geometry.parameters.radius.toFixed(3)})`;
+                        children.forEach(child => {
+                            const moon = bodies.get(child);
+                            if (moon) {
+                                html += `<div class="moon">└─ ${child} (r=${moon.mesh.geometry.parameters.radius.toFixed(4)})</div>`;
+                            }
+                        });
+                        html += `</div>`;
+                    }
+                }
+            }
+
+            systemsDiv.innerHTML = html;
+        }
+
+        // Animation
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += 0.01;
+
+            // Rotate planets
+            for (const [key, body] of bodies) {
+                if (body.data && body.data.type === 'planet') {
+                    // Orbit around sun
+                    const angle = time * 0.1 + (body.orbitRadius || 10) * 0.1;
+                    const radius = body.orbitRadius || 10;
+                    body.mesh.position.x = Math.cos(angle) * radius;
+                    body.mesh.position.z = Math.sin(angle) * radius;
+
+                    // Rotate planet
+                    body.mesh.rotation.y += 0.01;
+                }
+            }
+
+            // Update moon positions
+            for (const [key, body] of bodies) {
+                if (body.parent) {
+                    const parent = bodies.get(body.parent);
+                    if (parent) {
+                        // Simple circular orbit around parent
+                        const index = key.charCodeAt(0); // Unique per moon
+                        const moonAngle = time * (1 + index * 0.1);
+                        const moonRadius = parent.mesh.geometry.parameters.radius * (3 + index * 0.5);
+
+                        body.mesh.position.x = parent.mesh.position.x + Math.cos(moonAngle) * moonRadius;
+                        body.mesh.position.z = parent.mesh.position.z + Math.sin(moonAngle) * moonRadius;
+                        body.mesh.position.y = parent.mesh.position.y;
+                    }
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Controls
+        window.switchMode = function(mode) {
+            moonManager.setScaleMode(mode);
+            document.getElementById('current-mode').textContent = `Mode: ${mode}`;
+            createBodies();
+        };
+
+        window.focusSystem = function(system) {
+            const body = bodies.get(system.toUpperCase());
+            if (body) {
+                controls.target.copy(body.mesh.position);
+                camera.position.set(
+                    body.mesh.position.x + 10,
+                    body.mesh.position.y + 5,
+                    body.mesh.position.z + 10
+                );
+            }
+        };
+
+        // Initialize
+        createBodies();
+        moonManager.logHierarchy();
+        animate();
+    </script>
+</body>
+</html>

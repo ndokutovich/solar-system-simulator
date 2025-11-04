@@ -273,6 +273,29 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Slider Styles */
+        .slider-group {
+            margin: 10px 0;
+        }
+
+        .slider-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #00ff00;
+            font-size: 12px;
+        }
+
+        .slider-group input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .slider-group span {
+            color: #ffff00;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -294,7 +317,7 @@
                 <label>Time Control</label>
                 <div class="control-row">
                     <button id="play-pause">⏸</button>
-                    <button id="reset">⟲</button>
+                    <button id="reset" title="Reset time and all settings to defaults">⟲</button>
                 </div>
             </div>
 
@@ -325,8 +348,37 @@
                 <label for="show-trails">Show Trails</label>
             </div>
             <div class="checkbox-group">
+                <input type="checkbox" id="show-sun-glow" checked>
+                <label for="show-sun-glow">Show Sun Glow</label>
+            </div>
+            <div class="checkbox-group">
                 <input type="checkbox" id="scale-mode">
                 <label for="scale-mode">Realistic Scale</label>
+            </div>
+        </div>
+
+        <!-- Scale Controls -->
+        <div class="control-group">
+            <label>Scale Adjustments</label>
+
+            <div class="slider-group">
+                <label for="sun-scale">Sun Scale: <span id="sun-scale-value">1.0</span></label>
+                <input type="range" id="sun-scale" min="0.1" max="5" value="1" step="0.1">
+            </div>
+
+            <div class="slider-group">
+                <label for="planet-scale">Planet Scale: <span id="planet-scale-value">1.0</span></label>
+                <input type="range" id="planet-scale" min="0.1" max="10" value="1" step="0.1">
+            </div>
+
+            <div class="slider-group">
+                <label for="moon-scale">Moon Scale: <span id="moon-scale-value">10.0</span></label>
+                <input type="range" id="moon-scale" min="0.5" max="50" value="10" step="0.5">
+            </div>
+
+            <div class="slider-group">
+                <label for="moon-orbit-scale">Moon Orbit Scale: <span id="moon-orbit-scale-value">1.0</span></label>
+                <input type="range" id="moon-orbit-scale" min="0.1" max="10" value="1" step="0.1">
             </div>
         </div>
 
@@ -387,6 +439,160 @@
                 app = new SolarSystemApp('container');
                 window.app = app; // Expose for debugging
 
+                // IMPORTANT: Browser remembers form values after refresh
+                // So we apply whatever values are in the controls to the app
+                // This ensures UI and app state are synchronized
+
+                // Setup scale sliders and apply current values
+                const setupScaleSlider = (id, type, displayId) => {
+                    const slider = document.getElementById(id);
+                    const display = document.getElementById(displayId);
+                    if (slider && display) {
+                        // Apply current slider value on startup
+                        const currentValue = parseFloat(slider.value);
+                        display.textContent = currentValue.toFixed(1);
+                        app.updateScaleMultiplier(type, currentValue);
+
+                        // Setup listener for changes
+                        slider.addEventListener('input', (e) => {
+                            const value = parseFloat(e.target.value);
+                            display.textContent = value.toFixed(1);
+                            app.updateScaleMultiplier(type, value);
+                        });
+                    }
+                };
+
+                setupScaleSlider('sun-scale', 'sun', 'sun-scale-value');
+                setupScaleSlider('planet-scale', 'planet', 'planet-scale-value');
+                setupScaleSlider('moon-scale', 'moon', 'moon-scale-value');
+                setupScaleSlider('moon-orbit-scale', 'moonOrbit', 'moon-orbit-scale-value');
+
+                // Setup speed slider
+                const speedSlider = document.getElementById('speed-slider');
+                const speedDisplay = document.getElementById('speed-display');
+                if (speedSlider && speedDisplay) {
+                    // Apply current value
+                    const currentSpeed = parseFloat(speedSlider.value);
+                    speedDisplay.textContent = currentSpeed.toFixed(1) + 'x';
+                    app.setTimeSpeed(currentSpeed);
+
+                    // Setup listener
+                    speedSlider.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value);
+                        speedDisplay.textContent = value.toFixed(1) + 'x';
+                        app.setTimeSpeed(value);
+                    });
+                }
+
+                // Setup play/pause button
+                const playPauseBtn = document.getElementById('play-pause');
+                if (playPauseBtn) {
+                    playPauseBtn.addEventListener('click', () => {
+                        app.togglePause();
+                        playPauseBtn.textContent = app.isPaused ? '▶️ Play' : '⏸️ Pause';
+                    });
+                }
+
+                // Setup reset button
+                const resetBtn = document.getElementById('reset');
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', () => {
+                        app.reset();
+                        // Also reset controls to defaults
+                        if (speedSlider) {
+                            speedSlider.value = 1;
+                            speedDisplay.textContent = '1.0x';
+                            app.setTimeSpeed(1);
+                        }
+                        if (scaleMode) {
+                            scaleMode.checked = false;
+                            app.setScaleMode('visible');
+                        }
+                        // Reset scale sliders to defaults
+                        document.getElementById('sun-scale').value = 1;
+                        document.getElementById('sun-scale-value').textContent = '1.0';
+                        document.getElementById('planet-scale').value = 1;
+                        document.getElementById('planet-scale-value').textContent = '1.0';
+                        document.getElementById('moon-scale').value = 10;
+                        document.getElementById('moon-scale-value').textContent = '10.0';
+                        document.getElementById('moon-orbit-scale').value = 1;
+                        document.getElementById('moon-orbit-scale-value').textContent = '1.0';
+                        // Apply default scale values
+                        app.updateScaleMultiplier('sun', 1);
+                        app.updateScaleMultiplier('planet', 1);
+                        app.updateScaleMultiplier('moon', 10);
+                        app.updateScaleMultiplier('moonOrbit', 1);
+                        // Reset sun glow checkbox
+                        const sunGlowCheckbox = document.getElementById('show-sun-glow');
+                        if (sunGlowCheckbox) {
+                            sunGlowCheckbox.checked = true;
+                            app.toggleSunGlow(true);
+                        }
+                    });
+                }
+
+                // Setup checkboxes
+                const scaleMode = document.getElementById('scale-mode');
+                if (scaleMode) {
+                    // Apply current state
+                    if (scaleMode.checked) {
+                        app.setScaleMode('realistic');
+                    }
+
+                    // Setup listener
+                    scaleMode.addEventListener('change', (e) => {
+                        app.setScaleMode(e.target.checked ? 'realistic' : 'visible');
+                    });
+                }
+
+                // Setup Show Orbits checkbox
+                const showOrbits = document.getElementById('show-orbits');
+                if (showOrbits) {
+                    // Apply current state
+                    app.toggleOrbits(showOrbits.checked);
+
+                    // Setup listener
+                    showOrbits.addEventListener('change', (e) => {
+                        app.toggleOrbits(e.target.checked);
+                    });
+                }
+
+                // Setup Show Labels checkbox
+                const showLabels = document.getElementById('show-labels');
+                if (showLabels) {
+                    // Apply current state
+                    app.toggleLabels(showLabels.checked);
+
+                    // Setup listener
+                    showLabels.addEventListener('change', (e) => {
+                        app.toggleLabels(e.target.checked);
+                    });
+                }
+
+                // Setup Show Trails checkbox
+                const showTrails = document.getElementById('show-trails');
+                if (showTrails) {
+                    // Apply current state
+                    app.toggleTrails(showTrails.checked);
+
+                    // Setup listener
+                    showTrails.addEventListener('change', (e) => {
+                        app.toggleTrails(e.target.checked);
+                    });
+                }
+
+                // Setup Show Sun Glow checkbox
+                const showSunGlow = document.getElementById('show-sun-glow');
+                if (showSunGlow) {
+                    // Apply current state
+                    app.toggleSunGlow(showSunGlow.checked);
+
+                    // Setup listener
+                    showSunGlow.addEventListener('change', (e) => {
+                        app.toggleSunGlow(e.target.checked);
+                    });
+                }
+
                 // Setup body list clicks
                 document.querySelectorAll('.body-item').forEach(item => {
                     item.addEventListener('click', (e) => {
@@ -405,7 +611,7 @@
                         case ' ':
                             e.preventDefault();
                             app.togglePause();
-                            document.getElementById('play-pause').textContent = app.isPaused ? '▶' : '⏸';
+                            playPauseBtn.textContent = app.isPaused ? '▶️ Play' : '⏸️ Pause';
                             break;
                         case 'r':
                             app.reset();
