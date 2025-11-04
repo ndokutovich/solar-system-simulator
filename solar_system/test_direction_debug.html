@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sun Direction Debug</title>
+    <style>
+        body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+        #info {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(0,0,0,0.9); padding: 15px;
+            border: 2px solid #0f0;
+        }
+        .red { color: #f00; }
+        .green { color: #0f0; }
+        .yellow { color: #ff0; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Sun Direction Debug</h3>
+        <div id="debug"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
+        camera.position.set(0, 10, 15);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Sun at origin
+        const sun = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 16, 8),
+            new THREE.MeshBasicMaterial({ color: 0xffff00 })
+        );
+        scene.add(sun);
+
+        // Test shader - simpler version
+        const vertexShader = `
+            varying vec3 vNormal;
+            void main() {
+                vNormal = normal; // Use object-space normal directly
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            uniform vec3 sunDirection;
+            varying vec3 vNormal;
+
+            void main() {
+                float dot = dot(normalize(vNormal), normalize(sunDirection));
+
+                // Simple binary coloring
+                if (dot > 0.0) {
+                    // Facing sun = RED (hot)
+                    gl_FragColor = vec4(1.0, dot * 0.5, 0.0, 1.0);
+                } else {
+                    // Facing away = BLUE (cold)
+                    gl_FragColor = vec4(0.0, 0.0, 0.5 - dot * 0.5, 1.0);
+                }
+            }
+        `;
+
+        // Mercury
+        const mercury = new THREE.Mesh(
+            new THREE.SphereGeometry(1, 32, 16),
+            new THREE.ShaderMaterial({
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                uniforms: {
+                    sunDirection: { value: new THREE.Vector3(1, 0, 0) }
+                }
+            })
+        );
+        scene.add(mercury);
+
+        // Visual helpers
+        const mercuryAxes = new THREE.AxesHelper(2);
+        mercury.add(mercuryAxes);
+
+        const sunArrow = new THREE.ArrowHelper(
+            new THREE.Vector3(1, 0, 0),
+            new THREE.Vector3(0, 0, 0),
+            3,
+            0xffff00
+        );
+        scene.add(sunArrow);
+
+        // Debug info
+        const debugDiv = document.getElementById('debug');
+
+        function updateDebug() {
+            // Position Mercury
+            const angle = Date.now() * 0.0005;
+            mercury.position.x = Math.cos(angle) * 5;
+            mercury.position.z = Math.sin(angle) * 5;
+
+            // Calculate sun direction
+            const sunPos = new THREE.Vector3(0, 0, 0);
+            const mercuryPos = mercury.position.clone();
+
+            // Method 1: FROM Mercury TO Sun
+            const toSun = sunPos.clone().sub(mercuryPos).normalize();
+
+            // Method 2: FROM Sun TO Mercury (wrong)
+            const fromSun = mercuryPos.clone().sub(sunPos).normalize();
+
+            // Test both
+            const useCorrect = true; // Toggle this
+            const sunDir = useCorrect ? toSun : fromSun;
+
+            // Update shader
+            mercury.material.uniforms.sunDirection.value.copy(sunDir);
+
+            // Update arrow
+            sunArrow.position.copy(mercury.position);
+            sunArrow.setDirection(sunDir);
+
+            // Debug output
+            debugDiv.innerHTML = `
+                <div class="yellow">Mercury Position: (${mercuryPos.x.toFixed(2)}, ${mercuryPos.z.toFixed(2)})</div>
+                <div class="yellow">Sun at: (0, 0)</div>
+                <hr>
+                <div class="green">Method 1 - TO Sun (Correct):</div>
+                <div>sunPos - mercuryPos = (${toSun.x.toFixed(2)}, ${toSun.z.toFixed(2)})</div>
+                <hr>
+                <div class="red">Method 2 - FROM Sun (Wrong):</div>
+                <div>mercuryPos - sunPos = (${fromSun.x.toFixed(2)}, ${fromSun.z.toFixed(2)})</div>
+                <hr>
+                <div class="yellow">Using: ${useCorrect ? 'Method 1 ✓' : 'Method 2 ✗'}</div>
+                <div class="yellow">Sun Direction: (${sunDir.x.toFixed(2)}, ${sunDir.y.toFixed(2)}, ${sunDir.z.toFixed(2)})</div>
+                <hr>
+                <div>Expected: Red/Orange side faces center (sun)</div>
+                <div>Expected: Blue side faces away from center</div>
+            `;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateDebug();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

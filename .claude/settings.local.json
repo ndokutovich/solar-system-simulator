@@ -5,7 +5,16 @@
       "Bash(awk:*)",
       "Bash(find:*)",
       "Bash(git config:*)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Skill(document-skills:xlsx)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Skill(xlsx)",
+      "Bash(analyze_excel.py)",
+      "Bash(node test_coordinates.js:*)",
+      "Bash(node tests/test_orbital_mechanics.js:*)",
+      "Bash(node:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

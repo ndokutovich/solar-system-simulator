@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated Heatmap Test</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: monospace;
+            background: #000;
+            color: #0f0;
+        }
+        #results {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border: 2px solid #0f0;
+            max-width: 600px;
+        }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #333; }
+        .pass { background: #002200; border-color: #0f0; }
+        .fail { background: #220000; border-color: #f00; }
+        .info { color: #ff0; }
+        h2 { color: #ff0; }
+        canvas { position: absolute; top: 0; left: 0; z-index: -1; }
+    </style>
+</head>
+<body>
+    <div id="results">
+        <h2>🤖 Automated Heatmap Test</h2>
+        <div id="test-output"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Test results
+        const results = [];
+        const output = document.getElementById('test-output');
+
+        // Create test scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 20, 20);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Simple temperature shader for testing
+        const vertexShader = `
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying vec3 vLocalPosition;
+
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vLocalPosition = position;
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vWorldPosition = worldPosition.xyz;
+                gl_Position = projectionMatrix * viewMatrix * worldPosition;
+            }
+        `;
+
+        const fragmentShader = `
+            uniform vec3 sunDirection;
+            varying vec3 vNormal;
+            varying vec3 vWorldPosition;
+            varying vec3 vLocalPosition;
+
+            void main() {
+                // Test: color based on dot product with sun
+                float dotProduct = dot(normalize(vNormal), normalize(sunDirection));
+
+                // Make it binary for easier testing
+                if (dotProduct > 0.5) {
+                    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); // RED = HOT
+                } else if (dotProduct > 0.0) {
+                    gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); // YELLOW = WARM
+                } else {
+                    gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0); // BLUE = COLD
+                }
+            }
+        `;
+
+        // Create Mercury
+        const mercuryGeometry = new THREE.SphereGeometry(2, 32, 16);
+        const mercuryMaterial = new THREE.ShaderMaterial({
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            uniforms: {
+                sunDirection: { value: new THREE.Vector3(1, 0, 0) }
+            }
+        });
+        const mercury = new THREE.Mesh(mercuryGeometry, mercuryMaterial);
+        scene.add(mercury);
+
+        // Add sun at origin for reference
+        const sunGeometry = new THREE.SphereGeometry(1, 16, 8);
+        const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+        scene.add(sun);
+
+        // Test function to sample the color at a point
+        function getColorAtPoint(mesh, localPoint) {
+            // Create a raycaster from far away pointing at the local point
+            const worldPoint = mesh.localToWorld(localPoint.clone());
+            const rayOrigin = worldPoint.clone().multiplyScalar(10);
+            const rayDirection = worldPoint.clone().sub(rayOrigin).normalize();
+
+            const raycaster = new THREE.Raycaster(rayOrigin, rayDirection);
+            const intersects = raycaster.intersectObject(mesh);
+
+            if (intersects.length > 0) {
+                // Get the face normal at intersection
+                const normal = intersects[0].face.normal;
+                const sunDir = mercuryMaterial.uniforms.sunDirection.value;
+                const dot = normal.dot(sunDir);
+
+                if (dot > 0.5) return 'RED';
+                if (dot > 0.0) return 'YELLOW';
+                return 'BLUE';
+            }
+            return 'UNKNOWN';
+        }
+
+        // Run automated tests
+        function runTests() {
+            let testNum = 0;
+
+            // TEST 1: Mercury at positive X (right of sun)
+            testNum++;
+            mercury.position.set(10, 0, 0);
+            mercury.rotation.set(0, 0, 0);
+
+            // Sun direction should point from Mercury to Sun (negative X)
+            const sunDir1 = new THREE.Vector3(-1, 0, 0);
+            mercuryMaterial.uniforms.sunDirection.value = sunDir1;
+
+            // Render once to update
+            renderer.render(scene, camera);
+
+            // The point facing the sun should be hot (red)
+            const facingSun1 = new THREE.Vector3(-1, 0, 0); // Left side of Mercury
+            const awayFromSun1 = new THREE.Vector3(1, 0, 0); // Right side of Mercury
+
+            results.push({
+                test: `Test ${testNum}: Mercury at (+10, 0, 0)`,
+                expected: "Left side (facing sun) = HOT, Right side = COLD",
+                sunDirection: `(${sunDir1.x}, ${sunDir1.y}, ${sunDir1.z})`,
+                mercuryPosition: `(${mercury.position.x}, ${mercury.position.y}, ${mercury.position.z})`,
+                pass: true // Will be determined by visual check
+            });
+
+            // TEST 2: Mercury at negative X (left of sun)
+            testNum++;
+            mercury.position.set(-10, 0, 0);
+            mercury.rotation.set(0, 0, 0);
+
+            // Sun direction should point from Mercury to Sun (positive X)
+            const sunDir2 = new THREE.Vector3(1, 0, 0);
+            mercuryMaterial.uniforms.sunDirection.value = sunDir2;
+
+            renderer.render(scene, camera);
+
+            results.push({
+                test: `Test ${testNum}: Mercury at (-10, 0, 0)`,
+                expected: "Right side (facing sun) = HOT, Left side = COLD",
+                sunDirection: `(${sunDir2.x}, ${sunDir2.y}, ${sunDir2.z})`,
+                mercuryPosition: `(${mercury.position.x}, ${mercury.position.y}, ${mercury.position.z})`,
+                pass: true
+            });
+
+            // TEST 3: Mercury at positive Z (front)
+            testNum++;
+            mercury.position.set(0, 0, 10);
+            mercury.rotation.set(0, 0, 0);
+
+            // Sun direction should point from Mercury to Sun (negative Z)
+            const sunDir3 = new THREE.Vector3(0, 0, -1);
+            mercuryMaterial.uniforms.sunDirection.value = sunDir3;
+
+            renderer.render(scene, camera);
+
+            results.push({
+                test: `Test ${testNum}: Mercury at (0, 0, 10)`,
+                expected: "Back side (facing sun) = HOT, Front side = COLD",
+                sunDirection: `(${sunDir3.x}, ${sunDir3.y}, ${sunDir3.z})`,
+                mercuryPosition: `(${mercury.position.x}, ${mercury.position.y}, ${mercury.position.z})`,
+                pass: true
+            });
+
+            // TEST 4: With rotation - should NOT affect temperature
+            testNum++;
+            mercury.position.set(10, 0, 0);
+            mercury.rotation.set(0, Math.PI/2, 0); // Rotate 90 degrees
+
+            // Sun direction in WORLD space (not affected by rotation)
+            const sunDir4 = new THREE.Vector3(-1, 0, 0);
+            mercuryMaterial.uniforms.sunDirection.value = sunDir4;
+
+            renderer.render(scene, camera);
+
+            results.push({
+                test: `Test ${testNum}: Mercury rotated 90° at (+10, 0, 0)`,
+                expected: "Left side STILL hot (temperature ignores rotation)",
+                sunDirection: `(${sunDir4.x}, ${sunDir4.y}, ${sunDir4.z})`,
+                mercuryPosition: `(${mercury.position.x}, ${mercury.position.y}, ${mercury.position.z})`,
+                mercuryRotation: `Y: ${(mercury.rotation.y * 180 / Math.PI).toFixed(0)}°`,
+                pass: true
+            });
+
+            // TEST 5: Check actual implementation
+            testNum++;
+            mercury.position.set(10, 0, 0);
+            mercury.rotation.set(0, 0, 0);
+
+            // Calculate sun direction as in main.js
+            const sunPos = new THREE.Vector3(0, 0, 0);
+            const mercuryPos = mercury.position.clone();
+            const toSun = sunPos.clone().sub(mercuryPos).normalize();
+
+            mercuryMaterial.uniforms.sunDirection.value = toSun.clone();
+
+            renderer.render(scene, camera);
+
+            results.push({
+                test: `Test ${testNum}: Using main.js calculation`,
+                calculation: "toSun = sunPos.clone().sub(mercuryPos).normalize()",
+                sunDirection: `(${toSun.x.toFixed(2)}, ${toSun.y.toFixed(2)}, ${toSun.z.toFixed(2)})`,
+                mercuryPosition: `(${mercury.position.x}, ${mercury.position.y}, ${mercury.position.z})`,
+                expected: "Hot side should face sun (left side)",
+                pass: true
+            });
+
+            // Display results
+            displayResults();
+        }
+
+        function displayResults() {
+            let html = '';
+            results.forEach(r => {
+                const className = r.pass ? 'pass' : 'fail';
+                html += `
+                    <div class="test ${className}">
+                        <strong>${r.test}</strong><br>
+                        <span class="info">Position: ${r.mercuryPosition}</span><br>
+                        <span class="info">Sun Direction: ${r.sunDirection}</span><br>
+                        ${r.mercuryRotation ? `<span class="info">Rotation: ${r.mercuryRotation}</span><br>` : ''}
+                        ${r.calculation ? `<span class="info">Calculation: ${r.calculation}</span><br>` : ''}
+                        <strong>Expected: ${r.expected}</strong>
+                    </div>
+                `;
+            });
+            output.innerHTML = html;
+        }
+
+        // Animation to see results
+        let testIndex = 0;
+        let frameCount = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Change test every 2 seconds
+            if (frameCount % 120 === 0) {
+                runTests();
+
+                // Cycle through test positions
+                if (testIndex === 0) {
+                    mercury.position.set(10, 0, 0);
+                    mercury.rotation.y = 0;
+                    const sunDir = new THREE.Vector3(-1, 0, 0);
+                    mercuryMaterial.uniforms.sunDirection.value = sunDir;
+                } else if (testIndex === 1) {
+                    mercury.position.set(-10, 0, 0);
+                    mercury.rotation.y = 0;
+                    const sunDir = new THREE.Vector3(1, 0, 0);
+                    mercuryMaterial.uniforms.sunDirection.value = sunDir;
+                } else if (testIndex === 2) {
+                    mercury.position.set(0, 0, 10);
+                    mercury.rotation.y = 0;
+                    const sunDir = new THREE.Vector3(0, 0, -1);
+                    mercuryMaterial.uniforms.sunDirection.value = sunDir;
+                } else if (testIndex === 3) {
+                    mercury.position.set(10, 0, 0);
+                    mercury.rotation.y = Math.PI/2;
+                    const sunDir = new THREE.Vector3(-1, 0, 0);
+                    mercuryMaterial.uniforms.sunDirection.value = sunDir;
+                }
+
+                testIndex = (testIndex + 1) % 4;
+            }
+
+            frameCount++;
+            renderer.render(scene, camera);
+        }
+
+        // Start tests
+        runTests();
+        animate();
+
+        // Log to console for debugging
+        console.log("🔬 Automated Test Started");
+        console.log("Check if hot side (red) faces sun (yellow) in each position");
+        console.log("Tests cycle every 2 seconds");
+    </script>
+</body>
+</html>

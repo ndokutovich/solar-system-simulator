@@ -14,7 +14,8 @@ const temperatureVertexShader = `
   varying vec3 vPosition;
 
   void main() {
-    vNormal = normalize(normalMatrix * normal);
+    // Use object-space normal, not view-space
+    vNormal = normalize(normal);
     vPosition = position;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
@@ -332,19 +333,22 @@ class MinimalSolarSystem {
     this.mercury.position.x = Math.cos(orbitalAngle) * 15;
     this.mercury.position.z = Math.sin(orbitalAngle) * 15;
 
-    // CRITICAL: Update sun direction in Mercury's body-fixed frame
-    // This is the working solution from debug_temperature.html!
+    // For temperature visualization, we DON'T rotate Mercury
+    // Temperature depends on sun position, not Mercury's rotation
+    // The hot side should always face the sun, regardless of rotation
+    this.mercury.rotation.y = 0; // Keep at 0 for sun-locked temperature
+
+    // Track Mercury's actual rotation for other purposes (if needed)
+    const rotationAngle = (this.time / mercury.rotation.period_days) * Math.PI * 2;
+    // This is the physical rotation, but we don't apply it to the mesh
 
     // Calculate sun direction from Mercury to Sun
     const sunPos = new THREE.Vector3(0, 0, 0);
     const mercuryPos = this.mercury.position.clone();
-    const toSun = sunPos.sub(mercuryPos).normalize();
+    const toSun = sunPos.clone().sub(mercuryPos).normalize();
 
-    // Transform to Mercury's local space
-    // This is the critical part that makes it work!
-    this.mercury.updateMatrixWorld();
-    const mercuryMatrixInverse = new THREE.Matrix4().copy(this.mercury.matrixWorld).invert();
-    const sunDirLocal = toSun.clone().applyMatrix4(mercuryMatrixInverse).normalize();
+    // Since Mercury is not rotated, sun direction in local space = world space
+    const sunDirLocal = toSun.clone();
 
     // Update shader uniform with LOCAL sun direction
     this.mercuryMaterial.uniforms.sunDirection.value.copy(sunDirLocal);
@@ -355,6 +359,7 @@ class MinimalSolarSystem {
       console.log('Mercury position:', mercuryPos);
       console.log('Sun direction (local):', sunDirLocal);
       console.log('Orbital angle:', (orbitalAngle * 180 / Math.PI).toFixed(1) + '°');
+      console.log('Rotation angle:', (rotationAngle * 180 / Math.PI).toFixed(1) + '°');
     }
 
     // Display info
