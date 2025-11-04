@@ -203,7 +203,8 @@ export function transformToSolarSystemFrame(orbitalPosition, inclination, longit
  * @param {number} orbitalElements.longitudeOfAscendingNode - Longitude of ascending node in radians
  * @param {number} orbitalElements.argumentOfPerihelion - Argument of perihelion in radians
  * @param {number} orbitalElements.orbitalPeriod - Orbital period in days
- * @param {number} time - Time in days since epoch
+ * @param {number} orbitalElements.mean_anomaly_epoch - Mean anomaly at J2000.0 epoch in degrees (optional)
+ * @param {number} time - Time in days since J2000.0 epoch
  * @returns {Vector3} Position in solar system frame
  */
 export function calculateBodyPosition(orbitalElements, time) {
@@ -213,11 +214,16 @@ export function calculateBodyPosition(orbitalElements, time) {
         inclination = 0,
         longitudeOfAscendingNode = 0,
         argumentOfPerihelion = 0,
-        orbitalPeriod
+        orbitalPeriod,
+        mean_anomaly_epoch = 0 // Default to 0 (perihelion at epoch) for backward compatibility
     } = orbitalElements;
 
-    // Calculate mean anomaly
-    const meanAnomaly = calculateMeanAnomaly(time, orbitalPeriod);
+    // Calculate mean anomaly from epoch
+    // If mean_anomaly_epoch is provided, use it to calculate current mean anomaly
+    // Formula: M(t) = M0 + n*t, where M0 is mean anomaly at epoch, n is mean motion
+    const meanMotion = TWO_PI / orbitalPeriod; // radians per day
+    const meanAnomalyAtEpochRad = (mean_anomaly_epoch * Math.PI) / 180; // Convert degrees to radians
+    const meanAnomaly = meanAnomalyAtEpochRad + (meanMotion * time);
 
     // Solve Kepler's equation for eccentric anomaly
     const eccentricAnomaly = solveKeplersEquation(meanAnomaly, eccentricity);

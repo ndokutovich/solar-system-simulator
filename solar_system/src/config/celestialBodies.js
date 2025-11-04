@@ -134,6 +134,7 @@ export const CELESTIAL_BODIES = {
       semi_major_axis_au: 0.723332,
       eccentricity: 0.006772,
       inclination: 3.39458,
+      mean_anomaly_epoch: 50.115, // Mean anomaly at J2000.0 epoch
       period_days: 224.701,
       calculation_fn: orbitalMechanics.calculateKeplerianOrbit
     },
@@ -174,6 +175,7 @@ export const CELESTIAL_BODIES = {
       semi_major_axis_au: 1.000001018,
       eccentricity: 0.0167086,
       inclination: 0.00005,
+      mean_anomaly_epoch: 357.529, // Mean anomaly at J2000.0 epoch
       period_days: 365.256363004,
       calculation_fn: orbitalMechanics.calculateKeplerianOrbit
     },
@@ -256,6 +258,7 @@ export const CELESTIAL_BODIES = {
       semi_major_axis_au: 1.523679,
       eccentricity: 0.0934,
       inclination: 1.85,
+      mean_anomaly_epoch: 355.453, // Mean anomaly at J2000.0 epoch
       period_days: 686.98,
       calculation_fn: orbitalMechanics.calculateKeplerianOrbit
     },
@@ -364,6 +367,7 @@ export const CELESTIAL_BODIES = {
       semi_major_axis_au: 5.2044,
       eccentricity: 0.0489,
       inclination: 1.303,
+      mean_anomaly_epoch: 34.404, // Mean anomaly at J2000.0 epoch
       period_days: 4332.59, // 11.86 years
       calculation_fn: orbitalMechanics.calculateKeplerianOrbit
     },
@@ -547,6 +551,7 @@ export const CELESTIAL_BODIES = {
       semi_major_axis_au: 9.5826,
       eccentricity: 0.0565,
       inclination: 2.485,
+      mean_anomaly_epoch: 50.078, // Mean anomaly at J2000.0 epoch
       period_days: 10759.22, // 29.5 years
       calculation_fn: orbitalMechanics.calculateKeplerianOrbit
     },
@@ -700,6 +705,7 @@ export const CELESTIAL_BODIES = {
       semi_major_axis_au: 19.2184,
       eccentricity: 0.046381,
       inclination: 0.773,
+      mean_anomaly_epoch: 142.238, // Mean anomaly at J2000.0 epoch
       period_days: 30688.5, // 84 years
       calculation_fn: orbitalMechanics.calculateKeplerianOrbit
     },
@@ -816,6 +822,7 @@ export const CELESTIAL_BODIES = {
       semi_major_axis_au: 30.07,
       eccentricity: 0.0113,
       inclination: 1.767975,
+      mean_anomaly_epoch: 267.767, // Mean anomaly at J2000.0 epoch
       period_days: 60182, // 164.8 years
       calculation_fn: orbitalMechanics.calculateKeplerianOrbit
     },
@@ -853,6 +860,7 @@ export const CELESTIAL_BODIES = {
       semi_major_axis_au: 39.482,
       eccentricity: 0.2488,
       inclination: 17.16,
+      mean_anomaly_epoch: 14.882, // Mean anomaly at J2000.0 epoch
       period_days: 90560, // 247.9 years
       calculation_fn: orbitalMechanics.calculateKeplerianOrbit
     },

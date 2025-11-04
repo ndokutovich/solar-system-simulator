@@ -332,6 +332,42 @@
             <div id="time-display">Day: 0</div>
         </div>
 
+        <!-- Date/Time Display -->
+        <div class="control-group" style="margin-top: 15px; padding: 10px; background: rgba(0, 255, 0, 0.05); border-radius: 5px;">
+            <label style="color: #88ff88; font-weight: bold;">📅 Current Date/Time</label>
+            <div id="current-date" style="color: #ffff00; font-size: 14px; margin-top: 5px;">
+                Jan 1, 2000, 12:00 UTC
+            </div>
+            <div id="days-since-epoch" style="color: #88ff88; font-size: 11px; margin-top: 3px;">
+                Days since J2000.0: 0.00
+            </div>
+        </div>
+
+        <!-- Date/Time Picker -->
+        <div class="control-group" style="margin-top: 10px; padding: 10px; background: rgba(0, 255, 0, 0.05); border-radius: 5px;">
+            <label style="color: #88ff88; font-weight: bold;">⏰ Jump to Date</label>
+            <div style="display: flex; gap: 5px; margin-top: 8px;">
+                <input type="date" id="date-input" value="2000-01-01" style="flex: 2; padding: 5px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ff00; color: #00ff00; border-radius: 3px; font-size: 12px;">
+                <input type="time" id="time-input" value="12:00" style="flex: 1; padding: 5px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ff00; color: #00ff00; border-radius: 3px; font-size: 12px;">
+                <button id="jump-to-date" style="padding: 5px 10px; font-size: 12px;">Go</button>
+            </div>
+            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;">
+                <button class="quick-date" data-date="2000-01-01" style="padding: 4px 8px; font-size: 11px;">J2000</button>
+                <button class="quick-date" data-date="today" style="padding: 4px 8px; font-size: 11px;">Today</button>
+                <button class="quick-date" data-date="2030-01-01" style="padding: 4px 8px; font-size: 11px;">2030</button>
+                <button class="quick-date" data-date="2050-01-01" style="padding: 4px 8px; font-size: 11px;">2050</button>
+            </div>
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+                <label style="color: #88ff88; font-size: 10px; margin-bottom: 4px; display: block;">🌟 Planetary Parades:</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                    <button class="quick-date" data-date="2000-05-05" title="5-planet alignment visible from Earth" style="padding: 4px 8px; font-size: 11px;">May 2000</button>
+                    <button class="quick-date" data-date="2022-06-24" title="All planets visible in morning sky" style="padding: 4px 8px; font-size: 11px;">Jun 2022</button>
+                    <button class="quick-date" data-date="2025-02-28" title="7-planet parade (Venus, Saturn, Neptune, Mercury, Mars, Uranus, Jupiter)" style="padding: 4px 8px; font-size: 11px;">Feb 2025</button>
+                    <button class="quick-date" data-date="2040-09-08" title="Major planetary grouping" style="padding: 4px 8px; font-size: 11px;">Sep 2040</button>
+                </div>
+            </div>
+        </div>
+
         <!-- View Options -->
         <div class="control-group">
             <label>View Options</label>
@@ -614,6 +650,60 @@
                         app.toggleGrids(e.target.checked);
                     });
                 }
+
+                // Setup Date/Time Picker
+                import('./src/domain/services/DateTimeService.js').then(module => {
+                    const { parseDateTime, dateToSimulationTime, getDateInputValue, getTimeInputValue, simulationTimeToDate } = module;
+
+                    // Jump to date button
+                    const jumpToDateBtn = document.getElementById('jump-to-date');
+                    const dateInput = document.getElementById('date-input');
+                    const timeInput = document.getElementById('time-input');
+
+                    if (jumpToDateBtn && dateInput && timeInput) {
+                        jumpToDateBtn.addEventListener('click', () => {
+                            try {
+                                const dateStr = dateInput.value;
+                                const timeStr = timeInput.value;
+                                const date = parseDateTime(dateStr, timeStr);
+                                const simTime = dateToSimulationTime(date);
+
+                                app.setTime(simTime);
+                                app.updateBodies(0); // Force immediate update
+                                app.updateDateDisplay();
+                            } catch (error) {
+                                console.error('Invalid date/time:', error);
+                                alert('Invalid date or time. Please check your input.');
+                            }
+                        });
+                    }
+
+                    // Quick date buttons
+                    document.querySelectorAll('.quick-date').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const dateStr = btn.dataset.date;
+                            let date;
+
+                            if (dateStr === 'today') {
+                                date = new Date();
+                            } else {
+                                date = parseDateTime(dateStr, '12:00');
+                            }
+
+                            const simTime = dateToSimulationTime(date);
+                            app.setTime(simTime);
+                            app.updateBodies(0); // Force immediate update
+                            app.updateDateDisplay();
+
+                            // Update input fields
+                            dateInput.value = getDateInputValue(date);
+                            timeInput.value = getTimeInputValue(date);
+                        });
+                    });
+
+                    // Initialize date display
+                    app.updateDateDisplay();
+                });
 
                 // Setup body list clicks
                 document.querySelectorAll('.body-item').forEach(item => {

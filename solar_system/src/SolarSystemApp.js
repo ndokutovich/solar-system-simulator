@@ -434,7 +434,8 @@ export class SolarSystemApp {
                     inclination: (orbital.inclination || 0) * Math.PI / 180,
                     longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
                     argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
-                    orbitalPeriod: orbital.period_days || 365.25
+                    orbitalPeriod: orbital.period_days || 365.25,
+                    mean_anomaly_epoch: orbital.mean_anomaly_epoch || 0 // Use real J2000.0 positions!
                 }, fakeTime);
 
                 points.push(new THREE.Vector3(
@@ -454,7 +455,8 @@ export class SolarSystemApp {
                     inclination: (orbital.inclination || 0) * Math.PI / 180,
                     longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
                     argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
-                    orbitalPeriod: orbital.period_days || 27.3
+                    orbitalPeriod: orbital.period_days || 27.3,
+                    mean_anomaly_epoch: orbital.mean_anomaly_epoch || 0 // Use real J2000.0 positions!
                 }, fakeTime);
 
                 points.push(new THREE.Vector3(
@@ -625,7 +627,8 @@ export class SolarSystemApp {
                             inclination: (orbital.inclination || 0) * Math.PI / 180,
                             longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
                             argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
-                            orbitalPeriod: orbital.period_days || 365.25
+                            orbitalPeriod: orbital.period_days || 365.25,
+                            mean_anomaly_epoch: orbital.mean_anomaly_epoch || 0 // Use real J2000.0 positions!
                         }, this.time);
 
                         // Scale for moon distances
@@ -671,7 +674,8 @@ export class SolarSystemApp {
                         inclination: (orbital.inclination || 0) * Math.PI / 180,
                         longitudeOfAscendingNode: (orbital.longitude_ascending_node || 0) * Math.PI / 180,
                         argumentOfPerihelion: (orbital.argument_perihelion || 0) * Math.PI / 180,
-                        orbitalPeriod: orbital.period_days || 365.25
+                        orbitalPeriod: orbital.period_days || 365.25,
+                        mean_anomaly_epoch: orbital.mean_anomaly_epoch || 0 // Use real J2000.0 positions!
                     }, this.time);
 
                     const scale = this.getScaleForDistance();
@@ -950,6 +954,13 @@ export class SolarSystemApp {
         // Update trails
         this.updateTrails();
 
+        // Update date/time display (throttled - only update every 10 frames)
+        if (!this.frameCount) this.frameCount = 0;
+        this.frameCount++;
+        if (this.frameCount % 10 === 0) {
+            this.updateDateDisplay();
+        }
+
         // Update controls
         this.controls.update();
 
@@ -1000,6 +1011,60 @@ export class SolarSystemApp {
         // Simply call updateScale() which already handles recreating everything
         // including grids, labels, and trails with proper cleanup
         this.updateScale();
+    }
+
+    /**
+     * Set simulation time (days since J2000.0 epoch)
+     * @param {number} timeDays - Days since epoch
+     */
+    setTime(timeDays) {
+        this.time = timeDays;
+    }
+
+    /**
+     * Get current simulation time
+     * @returns {number} Days since J2000.0 epoch
+     */
+    getTime() {
+        return this.time;
+    }
+
+    /**
+     * Set time by real date
+     * @param {Date} date - JavaScript Date object
+     */
+    setTimeByDate(date) {
+        // Import dateToSimulationTime dynamically
+        import('./domain/services/DateTimeService.js').then(({ dateToSimulationTime }) => {
+            this.time = dateToSimulationTime(date);
+            this.updateBodies(0); // Force immediate update
+            this.updateDateDisplay();
+        });
+    }
+
+    /**
+     * Get current date corresponding to simulation time
+     * @returns {Date} JavaScript Date object
+     */
+    getCurrentDate() {
+        // We'll need to import this dynamically in the method that uses it
+        return null; // Placeholder - will be set up in event handlers
+    }
+
+    /**
+     * Update date/time display in UI
+     */
+    updateDateDisplay() {
+        const currentDateEl = document.getElementById('current-date');
+        const daysSinceEpochEl = document.getElementById('days-since-epoch');
+
+        if (currentDateEl && daysSinceEpochEl) {
+            import('./domain/services/DateTimeService.js').then(({ simulationTimeToDate, formatDate }) => {
+                const currentDate = simulationTimeToDate(this.time);
+                currentDateEl.textContent = formatDate(currentDate);
+                daysSinceEpochEl.textContent = `Days since J2000.0: ${this.time.toFixed(2)}`;
+            });
+        }
     }
 
     /**
