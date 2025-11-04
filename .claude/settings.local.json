@@ -3,7 +3,9 @@
     "allow": [
       "Bash(awk '{print $9, \"\"\"\"(\"\"\"\" $5 \"\"\"\")\"\"\"\"}')",
       "Bash(awk:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git config:*)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []
