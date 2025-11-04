@@ -206,7 +206,8 @@ export function calculateBodyRotation(rotationParams, time, orbitalAnomaly = 0, 
         period_days,
         resonance,
         axial_tilt = 0,
-        tidally_locked = false
+        tidally_locked = false,
+        initial_rotation = 0
     } = rotationParams;
 
     let angle;
@@ -221,6 +222,9 @@ export function calculateBodyRotation(rotationParams, time, orbitalAnomaly = 0, 
         // Simple rotation
         angle = calculateSimpleRotation(time, period_days);
     }
+
+    // Apply initial rotation offset
+    angle += initial_rotation;
 
     const axis = calculateRotationAxis(axial_tilt);
     const matrix = calculateRotationMatrix(angle, axis);

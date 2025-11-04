@@ -352,6 +352,10 @@
                 <label for="show-sun-glow">Show Sun Glow</label>
             </div>
             <div class="checkbox-group">
+                <input type="checkbox" id="show-grids">
+                <label for="show-grids">Show Lat/Long Grids</label>
+            </div>
+            <div class="checkbox-group">
                 <input type="checkbox" id="scale-mode">
                 <label for="scale-mode">Realistic Scale</label>
             </div>
@@ -528,6 +532,12 @@
                             sunGlowCheckbox.checked = true;
                             app.toggleSunGlow(true);
                         }
+                        // Reset grids checkbox
+                        const gridsCheckbox = document.getElementById('show-grids');
+                        if (gridsCheckbox) {
+                            gridsCheckbox.checked = false;
+                            app.toggleGrids(false);
+                        }
                     });
                 }
 
@@ -590,6 +600,18 @@
                     // Setup listener
                     showSunGlow.addEventListener('change', (e) => {
                         app.toggleSunGlow(e.target.checked);
+                    });
+                }
+
+                // Setup Show Grids checkbox
+                const showGrids = document.getElementById('show-grids');
+                if (showGrids) {
+                    // Apply current state
+                    app.toggleGrids(showGrids.checked);
+
+                    // Setup listener
+                    showGrids.addEventListener('change', (e) => {
+                        app.toggleGrids(e.target.checked);
                     });
                 }
 

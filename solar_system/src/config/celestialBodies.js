@@ -95,6 +95,7 @@ export const CELESTIAL_BODIES = {
     rotation: {
       period_days: 58.646,
       axial_tilt: 0.034,
+      initial_rotation: Math.PI, // 180 degrees - hot side faces sun at start
       resonance: {
         rotations: 3,
         orbits: 2
@@ -706,6 +707,7 @@ export const CELESTIAL_BODIES = {
     rotation: {
       period_days: -0.718, // Retrograde, 17.2 hours
       axial_tilt: 97.77, // Nearly on its side!
+      pole_direction: 90, // 90° makes pole point radially (toward/away from sun)
       calculation_fn: rotationalMechanics.calculateRetrograde
     },
 

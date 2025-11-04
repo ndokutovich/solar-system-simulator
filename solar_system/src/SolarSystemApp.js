@@ -43,12 +43,14 @@ export class SolarSystemApp {
         this.bodies = new Map();
         this.trails = new Map();
         this.labels = new Map();
+        this.grids = new Map();
 
         // Visibility flags
         this.showOrbits = true;
         this.showLabels = false;
         this.showTrails = false;
         this.showSunGlow = true;
+        this.showGrids = false;
 
         // Three.js components
         this.scene = null;
@@ -157,7 +159,7 @@ export class SolarSystemApp {
         const sunData = CELESTIAL_BODIES.SUN;
 
         // Sun geometry
-        const sunRadius = this.getScaledRadius(sunData.radius_km, 'sun');
+        const sunRadius = this.getScaledRadius(sunData.radius_km, 'star');
         const sunGeometry = new THREE.SphereGeometry(sunRadius, 64, 32);
 
         // Sun material (self-illuminated)
@@ -190,7 +192,7 @@ export class SolarSystemApp {
         });
 
         // Create label for Sun
-        this.createLabel('SUN', sunData.name_en || 'Sun', sun);
+        this.createLabel('SUN', sunData.name_en || 'Sun', sun, sunRadius);
     }
 
     createCelestialBody(key, bodyData) {
@@ -285,7 +287,7 @@ export class SolarSystemApp {
         });
 
         // Create label for this body
-        this.createLabel(key, bodyData.name_en || bodyData.name, container || mesh);
+        this.createLabel(key, bodyData.name_en || bodyData.name, container || mesh, radius);
 
         // Check if any pending moon orbits need this planet as parent
         if (this.pendingMoonOrbits) {
@@ -690,7 +692,45 @@ export class SolarSystemApp {
                 const rotation = calculateBodyRotation(data.rotation, this.time, 0, data.orbital?.period_days || 365.25);
                 // Always rotate the mesh, never the container
                 // This way orbit lines stay fixed while planet spins
-                mesh.rotation.y = rotation.angle;
+
+                // Apply rotation with proper axial tilt
+                if (data.rotation.axial_tilt !== undefined && data.rotation.axial_tilt !== 0) {
+                    // For planets with extreme tilt (like Uranus), we need to orient the tilt
+                    // based on orbital position so poles can point toward/away from sun
+
+                    // 1. Tilt direction should be FIXED in space (not rotating with orbit)
+                    // pole_direction defines which direction in space the north pole points
+                    // 0° = +X axis, 90° = +Z axis, etc.
+                    const poleDirectionRad = (data.rotation.pole_direction || 0) * Math.PI / 180;
+                    const tiltDirection = poleDirectionRad; // Fixed in space!
+
+                    // 2. Create quaternion for tilt direction (rotate tilt around Y axis)
+                    const tiltDirQuat = new THREE.Quaternion();
+                    tiltDirQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), tiltDirection);
+
+                    // 3. Create tilt quaternion (rotation around X axis)
+                    const tiltRad = (data.rotation.axial_tilt * Math.PI) / 180;
+                    const tiltQuat = new THREE.Quaternion();
+                    tiltQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), tiltRad);
+
+                    // 4. Create rotation quaternion (around Y axis - spin)
+                    const rotQuat = new THREE.Quaternion();
+                    rotQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotation.angle);
+
+                    // 5. Combine: tiltDirection * tilt * rotation
+                    const tempQuat = new THREE.Quaternion();
+                    tempQuat.multiplyQuaternions(tiltQuat, rotQuat);
+
+                    const finalQuat = new THREE.Quaternion();
+                    finalQuat.multiplyQuaternions(tiltDirQuat, tempQuat);
+
+                    mesh.quaternion.copy(finalQuat);
+                } else {
+                    // Simple Y-axis rotation for bodies without tilt
+                    mesh.rotation.x = 0;
+                    mesh.rotation.y = rotation.angle;
+                    mesh.rotation.z = 0;
+                }
             }
 
             // Update temperature shader for Mercury
@@ -715,11 +755,33 @@ export class SolarSystemApp {
     updateScale() {
         // Recreate all bodies with new scale
         // This is a simplified approach - in production you'd update existing geometries
+        const gridsWereVisible = this.showGrids;
+        const trailsWereVisible = this.showTrails;
+
         this.clearBodies();
         this.initBodies();
 
         // Force immediate position update to ensure everything is placed correctly
         this.updateBodies(0);
+
+        // Recreate grids if they were visible
+        if (gridsWereVisible) {
+            for (const [key, body] of this.bodies) {
+                const mesh = body.mesh;
+                const radius = mesh.geometry.parameters.radius;
+                // IMPORTANT: Always add grid to MESH (not container) so it rotates with the planet
+                this.createLatLongGrid(key, radius * 1.01, mesh);
+            }
+        }
+
+        // Recreate trails if they were visible
+        if (trailsWereVisible) {
+            for (const [key, body] of this.bodies) {
+                if (key !== 'SUN') {
+                    this.createTrail(key);
+                }
+            }
+        }
     }
 
     clearBodies() {
@@ -753,6 +815,36 @@ export class SolarSystemApp {
             if (line.material) line.material.dispose();
             this.scene.remove(line);
         });
+
+        // Clear trails
+        for (const [key, trail] of this.trails) {
+            if (trail.line) {
+                if (trail.line.geometry) trail.line.geometry.dispose();
+                if (trail.line.material) trail.line.material.dispose();
+                this.scene.remove(trail.line);
+            }
+        }
+        this.trails.clear();
+
+        // Clear labels
+        for (const [key, label] of this.labels) {
+            if (label.material && label.material.map) {
+                label.material.map.dispose();
+            }
+            if (label.material) label.material.dispose();
+            // Label is child of container/mesh, so it gets removed automatically
+        }
+        this.labels.clear();
+
+        // Clear grids
+        for (const [key, grid] of this.grids) {
+            grid.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+            // Grid is child of container/mesh, so it gets removed automatically
+        }
+        this.grids.clear();
 
         // Clear pending moon orbits
         if (this.pendingMoonOrbits) {
@@ -905,41 +997,9 @@ export class SolarSystemApp {
     updateScaleMultiplier(type, value) {
         this.scaleMultipliers[this.scaleMode][type] = value;
 
-        // Update all body scales
-        for (const [key, body] of this.bodies) {
-            const { mesh, data } = body;
-
-            // Skip if no mesh or geometry
-            if (!mesh || !mesh.geometry) continue;
-
-            // Get parent radius if this is a moon
-            let parentRadiusKm = null;
-            if (data.parent && data.parent !== 'sun') {
-                const parentKey = data.parent.toUpperCase();
-                if (CELESTIAL_BODIES[parentKey]) {
-                    parentRadiusKm = CELESTIAL_BODIES[parentKey].radius_km;
-                }
-            }
-
-            // Calculate new scale
-            const newRadius = this.getScaledRadius(data.radius_km, data.type, parentRadiusKm);
-
-            // Update geometry
-            mesh.geometry.dispose();
-            mesh.geometry = new THREE.SphereGeometry(newRadius, 32, 16);
-
-            // Special case: Update sun's glow sphere too
-            if (key === 'SUN' && body.glow) {
-                body.glow.geometry.dispose();
-                body.glow.geometry = new THREE.SphereGeometry(newRadius * 1.5, 32, 16);
-            }
-        }
-
-        // For orbit updates, we need to recreate them
-        // This is more complex, so for now we'll need to refresh the scene
-        if (type === 'moonOrbit') {
-            console.log('Moon orbit scale changed - may need to reload for full effect');
-        }
+        // Simply call updateScale() which already handles recreating everything
+        // including grids, labels, and trails with proper cleanup
+        this.updateScale();
     }
 
     /**
@@ -952,7 +1012,7 @@ export class SolarSystemApp {
     /**
      * Create text label for a celestial body
      */
-    createLabel(key, name, parentObject) {
+    createLabel(key, name, parentObject, radius) {
         // Create canvas for text
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -978,9 +1038,9 @@ export class SolarSystemApp {
         });
         const sprite = new THREE.Sprite(spriteMaterial);
 
-        // Scale and position - closer to object
+        // Scale and position - relative to object size
         sprite.scale.set(2, 0.5, 1);
-        sprite.position.set(0, 0.4, 0); // Slightly above the object
+        sprite.position.set(0, radius + 0.2, 0); // Slightly above the object
 
         // Add to parent
         parentObject.add(sprite);
@@ -990,6 +1050,91 @@ export class SolarSystemApp {
 
         // Store reference
         this.labels.set(key, sprite);
+    }
+
+    /**
+     * Create latitude/longitude grid for a celestial body
+     */
+    createLatLongGrid(key, radius, parentObject) {
+        const latLines = 12; // Every 15 degrees
+        const longLines = 24; // Every 15 degrees
+        const group = new THREE.Group();
+
+        // Latitude lines (parallels)
+        for (let lat = -75; lat <= 75; lat += 15) {
+            const latRad = (lat * Math.PI) / 180;
+            const circleRadius = radius * Math.cos(latRad);
+            const y = radius * Math.sin(latRad);
+
+            const points = [];
+            for (let i = 0; i <= 64; i++) {
+                const angle = (i / 64) * Math.PI * 2;
+                points.push(new THREE.Vector3(
+                    circleRadius * Math.cos(angle),
+                    y,
+                    circleRadius * Math.sin(angle)
+                ));
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: lat === 0 ? 0x00ff00 : 0x0088ff, // Equator green, others blue
+                transparent: true,
+                opacity: 0.4
+            });
+            const line = new THREE.Line(geometry, material);
+            group.add(line);
+        }
+
+        // Longitude lines (meridians)
+        for (let long = 0; long < 360; long += 15) {
+            const longRad = (long * Math.PI) / 180;
+
+            const points = [];
+            for (let i = 0; i <= 32; i++) {
+                const lat = ((i / 32) * 180 - 90) * Math.PI / 180;
+                points.push(new THREE.Vector3(
+                    radius * Math.cos(lat) * Math.cos(longRad),
+                    radius * Math.sin(lat),
+                    radius * Math.cos(lat) * Math.sin(longRad)
+                ));
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: long === 0 ? 0xff0000 : 0x0088ff, // Prime meridian red, others blue
+                transparent: true,
+                opacity: 0.4
+            });
+            const line = new THREE.Line(geometry, material);
+            group.add(line);
+        }
+
+        group.visible = this.showGrids;
+        parentObject.add(group);
+        this.grids.set(key, group);
+    }
+
+    /**
+     * Toggle grid visibility
+     */
+    toggleGrids(visible) {
+        this.showGrids = visible;
+
+        if (visible && this.grids.size === 0) {
+            // Create grids for all bodies
+            for (const [key, body] of this.bodies) {
+                const mesh = body.mesh;
+                const radius = mesh.geometry.parameters.radius;
+                // IMPORTANT: Always add grid to MESH (not container) so it rotates with the planet
+                this.createLatLongGrid(key, radius * 1.01, mesh);
+            }
+        } else {
+            // Toggle visibility of existing grids
+            for (const [key, grid] of this.grids) {
+                grid.visible = visible;
+            }
+        }
     }
 
     /**
