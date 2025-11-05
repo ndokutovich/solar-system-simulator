@@ -429,6 +429,29 @@
             </div>
         </div>
 
+        <!-- Surface View / FPS Mode -->
+        <div class="control-group">
+            <label>🎮 Surface View (FPS Mode)</label>
+            <button id="toggle-surface-view" style="width: 100%; margin-top: 8px; padding: 8px; background: #003300; border: 1px solid #00ff00; color: #00ff00; cursor: pointer;">
+                Land on Selected Body
+            </button>
+            <div id="surface-view-status" style="margin-top: 8px; font-size: 11px; color: #888; display: none;">
+                <div style="color: #00ff00; font-weight: bold; margin-bottom: 4px;">🎮 Surface View Active</div>
+                <div>📍 On: <span id="surface-body-name">-</span></div>
+                <div>🎯 Target: <span id="target-lock-name">None</span></div>
+                <div>🔄 Rotation: <span id="follow-rotation-name">Following</span></div>
+                <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #333;">
+                    <div><strong>Controls:</strong></div>
+                    <div>WASD - Move</div>
+                    <div>Space/Shift - Up/Down</div>
+                    <div>Mouse - Look (click to lock)</div>
+                    <div>L - Toggle Target Lock</div>
+                    <div>R - Toggle Rotation Follow</div>
+                    <div>ESC - Exit Surface View</div>
+                </div>
+            </div>
+        </div>
+
         <!-- View Options -->
         <div class="control-group">
             <label>View Options</label>
@@ -802,6 +825,70 @@
                     const followSelect = document.getElementById('follow-body');
                     if (followSelect) followSelect.value = 'SATURN';
                 });
+
+                // Surface View toggle
+                const toggleSurfaceViewBtn = document.getElementById('toggle-surface-view');
+                const surfaceViewStatus = document.getElementById('surface-view-status');
+                const surfaceBodyName = document.getElementById('surface-body-name');
+                const targetLockName = document.getElementById('target-lock-name');
+                const followRotationName = document.getElementById('follow-rotation-name');
+
+                if (toggleSurfaceViewBtn) {
+                    toggleSurfaceViewBtn.addEventListener('click', () => {
+                        if (app.surfaceViewMode) {
+                            // Exit surface view
+                            app.disableSurfaceView();
+                            toggleSurfaceViewBtn.textContent = 'Land on Selected Body';
+                            toggleSurfaceViewBtn.style.background = '#003300';
+                            surfaceViewStatus.style.display = 'none';
+                        } else {
+                            // Enter surface view
+                            const bodyKey = app.selectedBodyKey || 'EARTH';
+                            app.enableSurfaceView(bodyKey);
+                            toggleSurfaceViewBtn.textContent = 'Exit Surface View';
+                            toggleSurfaceViewBtn.style.background = '#005500';
+                            surfaceViewStatus.style.display = 'block';
+
+                            // Update status display
+                            const body = app.bodies.get(bodyKey);
+                            if (body && body.data) {
+                                surfaceBodyName.textContent = `${body.data.emoji || ''} ${body.data.name_en || bodyKey}`;
+                            }
+
+                            // Set up interval to update target lock status
+                            if (app.surfaceViewUpdateInterval) {
+                                clearInterval(app.surfaceViewUpdateInterval);
+                            }
+                            app.surfaceViewUpdateInterval = setInterval(() => {
+                                if (!app.surfaceViewMode) {
+                                    clearInterval(app.surfaceViewUpdateInterval);
+                                    return;
+                                }
+
+                                // Update target lock status
+                                if (app.targetLock) {
+                                    const targetBody = app.bodies.get(app.targetLock);
+                                    if (targetBody && targetBody.data) {
+                                        targetLockName.textContent = `${targetBody.data.emoji || ''} ${targetBody.data.name_en || app.targetLock}`;
+                                        targetLockName.style.color = '#00ff00';
+                                    }
+                                } else {
+                                    targetLockName.textContent = 'Free Look';
+                                    targetLockName.style.color = '#ffff00';
+                                }
+
+                                // Update rotation follow status
+                                if (app.followRotation) {
+                                    followRotationName.textContent = 'Following';
+                                    followRotationName.style.color = '#00ff00';
+                                } else {
+                                    followRotationName.textContent = 'Fixed';
+                                    followRotationName.style.color = '#ffff00';
+                                }
+                            }, 100);
+                        }
+                    });
+                }
 
                 // Setup checkboxes
                 const scaleMode = document.getElementById('scale-mode');

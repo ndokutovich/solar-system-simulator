@@ -27,6 +27,24 @@ export class SolarSystemApp {
         this.preserveZoom = true; // When following, preserve camera distance
         this.followOffset = null; // Camera offset when following (relative to body)
 
+        // Surface View / FPS mode
+        this.surfaceViewMode = false; // FPS mode on planet surface
+        this.surfaceBodyKey = null; // Body whose surface we're on
+        this.targetLock = null; // Body key to lock camera view on
+        this.followRotation = true; // Follow planet's rotation (stay at same spot on surface)
+        this.fpsControls = {
+            moveForward: false,
+            moveBackward: false,
+            moveLeft: false,
+            moveRight: false,
+            moveUp: false,
+            moveDown: false,
+            moveSpeed: 10.0, // Movement speed multiplier
+            lookSpeed: 0.002,
+            yaw: 0, // Horizontal rotation
+            pitch: 0 // Vertical rotation
+        };
+
         // Scale multipliers for real-time adjustment (per mode)
         this.scaleMultipliers = {
             realistic: {
@@ -611,6 +629,72 @@ export class SolarSystemApp {
 
         // Fallback to gray
         return 0x888888;
+    }
+
+    /**
+     * Get scale factor for a body (returns the scale without distance conversion)
+     * @param {string} bodyKey - Body key (e.g., 'EARTH')
+     * @returns {number} Scale factor
+     */
+    getScaleForBody(bodyKey) {
+        const body = this.bodies.get(bodyKey);
+        if (!body) {
+            console.warn(`getScaleForBody: Body ${bodyKey} not found`);
+            return 1.0;
+        }
+
+        const bodyData = body.data;
+        if (!bodyData) {
+            console.warn(`getScaleForBody: Body ${bodyKey} has no data`);
+            return 1.0;
+        }
+
+        const radiusKm = bodyData.radius_km;
+        const type = bodyData.type;
+
+        console.log(`getScaleForBody(${bodyKey}):`, {
+            radiusKm,
+            type,
+            scaleMode: this.scaleMode,
+            multipliers: this.scaleMultipliers[this.scaleMode]
+        });
+
+        // Get parent radius if this is a moon
+        let parentRadiusKm = null;
+        if (bodyData.parent && bodyData.parent !== 'sun') {
+            const parentKey = bodyData.parent.toUpperCase();
+            if (CELESTIAL_BODIES[parentKey]) {
+                parentRadiusKm = CELESTIAL_BODIES[parentKey].radius_km;
+            }
+        }
+
+        let scale;
+
+        if (this.scaleMode === 'realistic') {
+            if (type === 'moon') {
+                const baseScale = radiusKm / 1000000;
+                const minMoonSize = 0.0005;
+                scale = Math.max(baseScale, minMoonSize) * this.scaleMultipliers[this.scaleMode].moon;
+            } else if (type === 'star') {
+                scale = (radiusKm / 5000000) * this.scaleMultipliers[this.scaleMode].sun;
+            } else {
+                scale = (radiusKm / 1000000) * this.scaleMultipliers[this.scaleMode].planet;
+            }
+        } else {
+            if (type === 'moon' && parentRadiusKm) {
+                const ratio = radiusKm / parentRadiusKm;
+                const parentBaseScale = Math.log10(parentRadiusKm + 1) * 0.001;
+                scale = Math.max(parentBaseScale * ratio * 2, 0.0002) * this.scaleMultipliers[this.scaleMode].moon;
+            } else if (type === 'star') {
+                scale = Math.log10(radiusKm + 1) * 0.0003 * this.scaleMultipliers[this.scaleMode].sun;
+            } else if (type === 'moon') {
+                scale = Math.log10(radiusKm + 1) * 0.00005 * this.scaleMultipliers[this.scaleMode].moon;
+            } else {
+                scale = Math.log10(radiusKm + 1) * 0.001 * this.scaleMultipliers[this.scaleMode].planet;
+            }
+        }
+
+        return scale;
     }
 
     getScaledRadius(radiusKm, type, parentRadiusKm = null) {
@@ -1328,8 +1412,13 @@ export class SolarSystemApp {
             this.updateDateDisplay();
         }
 
-        // Follow selected body (if any)
-        if (this.followBody) {
+        // Update surface view (FPS mode)
+        if (this.surfaceViewMode) {
+            this.updateSurfaceView(0.01);
+        }
+
+        // Follow selected body (if any) - disabled in surface view mode
+        if (this.followBody && !this.surfaceViewMode) {
             const body = this.bodies.get(this.followBody);
             if (body) {
                 // Follow the container for planets, mesh for moons
@@ -1353,8 +1442,10 @@ export class SolarSystemApp {
             }
         }
 
-        // Update controls
-        this.controls.update();
+        // Update controls (skip if in surface view mode)
+        if (!this.surfaceViewMode) {
+            this.controls.update();
+        }
 
         // Update stats (throttled - every 30 frames for smooth display)
         if (this.frameCount % 30 === 0) {
@@ -1418,10 +1509,7 @@ export class SolarSystemApp {
             // Store selected body key
             this.selectedBodyKey = bodyKey;
 
-            // Always point camera to Sun (origin)
-            this.controls.target.set(0, 0, 0);
-
-            // Update info panel
+            // Update info panel (don't move camera - clicking just selects)
             this.updateSelectedObjectInfo(bodyKey);
         }
     }
@@ -2329,6 +2417,413 @@ export class SolarSystemApp {
 
             trail.line.geometry.attributes.position.needsUpdate = true;
             trail.line.geometry.setDrawRange(0, trail.positions.length);
+        }
+    }
+
+    /**
+     * Surface View / FPS Mode Methods
+     */
+
+    enableSurfaceView(bodyKey) {
+        const body = this.bodies.get(bodyKey);
+        if (!body) return;
+
+        this.surfaceViewMode = true;
+        this.surfaceBodyKey = bodyKey;
+
+        // Disable OrbitControls
+        this.controls.enabled = false;
+
+        // Set initial camera position on surface
+        const object = body.container || body.mesh;
+        const bodyPos = object.position.clone();
+
+        // Get the actual mesh radius (already scaled) from the geometry
+        const geometry = body.mesh.geometry;
+        const bodyRadius = geometry.parameters ? geometry.parameters.radius : 0.1;
+
+        // Place camera on surface - close enough to see it
+        const surfaceHeight = bodyRadius * 1.05; // 5% above surface
+
+        // Calculate direction toward the sun for initial orientation
+        const sunDirection = new THREE.Vector3(0, 0, 0).sub(bodyPos).normalize();
+
+        // Position on surface, on the sun-facing hemisphere
+        // Use sun direction as base, then offset slightly for good angle
+        const lateralOffset = new THREE.Vector3(-sunDirection.z, 0, sunDirection.x).normalize();
+        const surfaceNormal = sunDirection.clone()
+            .multiplyScalar(0.7)
+            .add(lateralOffset.multiplyScalar(0.3))
+            .normalize();
+
+        const surfaceOffset = surfaceNormal.multiplyScalar(surfaceHeight);
+
+        // Store the offset from body center (this will move with the planet)
+        this.surfaceViewOffset = surfaceOffset.clone();
+
+        // Set initial position
+        this.camera.position.copy(bodyPos).add(surfaceOffset);
+
+        // Adjust camera near/far planes for surface view
+        this.camera.near = bodyRadius * 0.001; // Close near plane
+        this.camera.far = 2000; // Keep far plane large to see stars/sun
+        this.camera.updateProjectionMatrix();
+
+        // Initialize look direction toward the sun
+        const cameraToSun = new THREE.Vector3(0, 0, 0).sub(this.camera.position);
+        this.fpsControls.yaw = Math.atan2(cameraToSun.x, cameraToSun.z);
+        this.fpsControls.pitch = Math.asin(cameraToSun.normalize().y);
+
+        // Default target lock
+        if (this.followBody && this.targetLock !== false) {
+            this.targetLock = this.followBody;
+        }
+
+        // Init FPS control event listeners
+        this.initSurfaceViewControls();
+
+        console.log(`Surface view enabled on ${bodyKey}`, {
+            bodyPos,
+            bodyRadius,
+            cameraPos: this.camera.position,
+            near: this.camera.near,
+            far: this.camera.far
+        });
+    }
+
+    disableSurfaceView() {
+        this.surfaceViewMode = false;
+        this.surfaceBodyKey = null;
+        this.surfaceViewOffset = null; // Clear the offset
+        this.initialRotation = undefined; // Clear stored rotation
+
+        // Re-enable OrbitControls
+        this.controls.enabled = true;
+
+        // Restore camera planes
+        this.camera.near = 0.1;
+        this.camera.far = 2000;
+        this.camera.updateProjectionMatrix();
+
+        // Remove FPS control event listeners
+        this.removeSurfaceViewControls();
+
+        console.log('Surface view disabled, camera restored');
+    }
+
+    initSurfaceViewControls() {
+        // Keyboard handlers - stop propagation to prevent conflicts
+        this.onKeyDown = (e) => {
+            if (!this.surfaceViewMode) return;
+
+            let handled = false;
+            switch (e.code) {
+                case 'KeyW':
+                    console.log('W key pressed - move forward');
+                    this.fpsControls.moveForward = true;
+                    handled = true;
+                    break;
+                case 'KeyS':
+                    this.fpsControls.moveBackward = true;
+                    handled = true;
+                    break;
+                case 'KeyA':
+                    this.fpsControls.moveLeft = true;
+                    handled = true;
+                    break;
+                case 'KeyD':
+                    this.fpsControls.moveRight = true;
+                    handled = true;
+                    break;
+                case 'Space':
+                    this.fpsControls.moveUp = true;
+                    handled = true;
+                    e.preventDefault(); // Prevent page scroll
+                    break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    this.fpsControls.moveDown = true;
+                    handled = true;
+                    break;
+                case 'KeyL':
+                    this.toggleTargetLock();
+                    handled = true;
+                    break;
+                case 'KeyR':
+                    this.toggleFollowRotation();
+                    handled = true;
+                    break;
+                case 'Escape':
+                    this.disableSurfaceView();
+                    handled = true;
+                    break;
+            }
+
+            if (handled) {
+                e.stopPropagation();
+            }
+        };
+
+        this.onKeyUp = (e) => {
+            if (!this.surfaceViewMode) return;
+
+            let handled = false;
+            switch (e.code) {
+                case 'KeyW':
+                    this.fpsControls.moveForward = false;
+                    handled = true;
+                    break;
+                case 'KeyS':
+                    this.fpsControls.moveBackward = false;
+                    handled = true;
+                    break;
+                case 'KeyA':
+                    this.fpsControls.moveLeft = false;
+                    handled = true;
+                    break;
+                case 'KeyD':
+                    this.fpsControls.moveRight = false;
+                    handled = true;
+                    break;
+                case 'Space':
+                    this.fpsControls.moveUp = false;
+                    handled = true;
+                    break;
+                case 'ShiftLeft':
+                case 'ShiftRight':
+                    this.fpsControls.moveDown = false;
+                    handled = true;
+                    break;
+            }
+
+            if (handled) {
+                e.stopPropagation();
+            }
+        };
+
+        // Mouse look handler - works with pointer lock
+        this.onPointerMove = (e) => {
+            if (!this.surfaceViewMode) return;
+
+            const isLocked = document.pointerLockElement === this.renderer.domElement;
+
+            // Debug: log first few events
+            if (!this._mouseMoveCount) this._mouseMoveCount = 0;
+            if (this._mouseMoveCount < 5) {
+                console.log('Mouse move event:', {
+                    isLocked,
+                    movementX: e.movementX,
+                    movementY: e.movementY,
+                    targetLock: this.targetLock
+                });
+                this._mouseMoveCount++;
+            }
+
+            if (!isLocked) return;
+
+            // Only rotate if target lock is off
+            if (!this.targetLock) {
+                this.fpsControls.yaw -= e.movementX * this.fpsControls.lookSpeed;
+                this.fpsControls.pitch -= e.movementY * this.fpsControls.lookSpeed;
+
+                // Clamp pitch to avoid flipping
+                this.fpsControls.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.fpsControls.pitch));
+
+                // Debug: show updated values
+                if (this._mouseMoveCount < 10) {
+                    console.log('Updated camera angles:', {
+                        yaw: this.fpsControls.yaw,
+                        pitch: this.fpsControls.pitch,
+                        yawDegrees: (this.fpsControls.yaw * 180 / Math.PI).toFixed(1),
+                        pitchDegrees: (this.fpsControls.pitch * 180 / Math.PI).toFixed(1)
+                    });
+                }
+            }
+        };
+
+        // Request pointer lock on click
+        this.onPointerLockClick = () => {
+            if (!this.surfaceViewMode) return;
+
+            if (document.pointerLockElement !== this.renderer.domElement) {
+                console.log('Click detected - requesting pointer lock...');
+                const promise = this.renderer.domElement.requestPointerLock();
+                if (promise) {
+                    promise.catch((err) => {
+                        console.error('Pointer lock failed on click:', err);
+                    });
+                }
+            } else {
+                console.log('Pointer already locked');
+            }
+        };
+
+        // Pointer lock change handler
+        this.onPointerLockChange = () => {
+            if (document.pointerLockElement === this.renderer.domElement) {
+                console.log('Pointer locked - mouse look enabled');
+            } else if (this.surfaceViewMode) {
+                console.log('Pointer unlocked - click canvas to re-enable mouse look');
+            }
+        };
+
+        // Add event listeners with capture to intercept first
+        document.addEventListener('keydown', this.onKeyDown, true);
+        document.addEventListener('keyup', this.onKeyUp, true);
+        document.addEventListener('pointermove', this.onPointerMove, false);
+        document.addEventListener('pointerlockchange', this.onPointerLockChange, false);
+        document.addEventListener('pointerlockerror', (e) => {
+            console.error('Pointer lock error:', e);
+        }, false);
+        this.renderer.domElement.addEventListener('click', this.onPointerLockClick, false);
+
+        // Request pointer lock immediately
+        console.log('Requesting pointer lock...');
+        const promise = this.renderer.domElement.requestPointerLock();
+        if (promise) {
+            promise.then(() => {
+                console.log('Pointer lock request succeeded');
+            }).catch((err) => {
+                console.error('Pointer lock request failed:', err);
+                console.log('Click the canvas to enable mouse look');
+            });
+        } else {
+            console.log('Pointer lock API does not return a promise - click canvas to enable');
+        }
+
+        console.log('Surface view controls initialized - use WASD to move, click canvas for mouse look');
+    }
+
+    removeSurfaceViewControls() {
+        if (this.onKeyDown) document.removeEventListener('keydown', this.onKeyDown, true);
+        if (this.onKeyUp) document.removeEventListener('keyup', this.onKeyUp, true);
+        if (this.onPointerMove) document.removeEventListener('pointermove', this.onPointerMove, false);
+        if (this.onPointerLockChange) document.removeEventListener('pointerlockchange', this.onPointerLockChange, false);
+        if (this.onPointerLockClick) this.renderer.domElement.removeEventListener('click', this.onPointerLockClick, false);
+
+        // Exit pointer lock
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+
+        console.log('Surface view controls removed');
+    }
+
+    toggleTargetLock() {
+        if (this.targetLock) {
+            this.targetLock = null;
+            console.log('Target lock disabled');
+        } else if (this.followBody) {
+            this.targetLock = this.followBody;
+            console.log(`Target locked on ${this.followBody}`);
+        } else if (this.selectedBodyKey) {
+            this.targetLock = this.selectedBodyKey;
+            console.log(`Target locked on ${this.selectedBodyKey}`);
+        }
+    }
+
+    toggleFollowRotation() {
+        this.followRotation = !this.followRotation;
+        if (this.followRotation) {
+            console.log('Following planet rotation - camera rotates with surface');
+        } else {
+            console.log('NOT following rotation - planet spins beneath you');
+        }
+    }
+
+    updateSurfaceView(deltaTime) {
+        if (!this.surfaceViewMode || !this.surfaceBodyKey) return;
+
+        const body = this.bodies.get(this.surfaceBodyKey);
+        if (!body) return;
+
+        const object = body.container || body.mesh;
+        const bodyPos = object.position.clone();
+
+        // Get body radius in scene units (use actual mesh geometry radius)
+        const geometry = body.mesh.geometry;
+        const bodyRadius = geometry.parameters ? geometry.parameters.radius : 0.1;
+
+        // Update camera to follow planet's orbital motion
+        // Apply the stored offset from planet center (this keeps us on the surface as planet orbits)
+        if (!this.surfaceViewOffset) {
+            // Fallback if offset wasn't stored
+            this.surfaceViewOffset = this.camera.position.clone().sub(bodyPos);
+        }
+
+        // Calculate movement based on keyboard input
+        const moveVector = new THREE.Vector3();
+
+        if (this.fpsControls.moveForward) moveVector.z -= 1;
+        if (this.fpsControls.moveBackward) moveVector.z += 1;
+        if (this.fpsControls.moveLeft) moveVector.x -= 1;
+        if (this.fpsControls.moveRight) moveVector.x += 1;
+        if (this.fpsControls.moveUp) moveVector.y += 1;
+        if (this.fpsControls.moveDown) moveVector.y -= 1;
+
+        // Apply movement relative to camera orientation
+        if (moveVector.length() > 0) {
+            moveVector.normalize();
+
+            // Move relative to camera yaw
+            const yawRotation = new THREE.Euler(0, this.fpsControls.yaw, 0, 'YXZ');
+            moveVector.applyEuler(yawRotation);
+
+            // Scale movement speed relative to body size
+            const moveSpeed = this.fpsControls.moveSpeed * bodyRadius * 0.01;
+
+            // Update the offset (movement relative to planet)
+            this.surfaceViewOffset.add(moveVector.multiplyScalar(moveSpeed));
+        }
+
+        // Apply planet rotation to offset if followRotation is enabled
+        if (this.followRotation && body.data.rotation && body.data.rotation.period_days) {
+            // Get current rotation angle from mesh
+            const rotationAngle = body.mesh.rotation.y;
+
+            // Store initial rotation if not set
+            if (this.initialRotation === undefined) {
+                this.initialRotation = rotationAngle;
+            }
+
+            // Calculate rotation delta since landing
+            const rotationDelta = rotationAngle - this.initialRotation;
+
+            // Rotate the offset vector around Y axis to match planet rotation
+            const rotatedOffset = this.surfaceViewOffset.clone();
+            const rotationAxis = new THREE.Vector3(0, 1, 0);
+            rotatedOffset.applyAxisAngle(rotationAxis, rotationDelta);
+
+            // Set camera position = planet position + rotated offset
+            this.camera.position.copy(bodyPos).add(rotatedOffset);
+        } else {
+            // Not following rotation - just use the fixed offset
+            this.camera.position.copy(bodyPos).add(this.surfaceViewOffset);
+        }
+
+        // Update camera look direction
+        if (this.targetLock) {
+            // Look at locked target
+            const targetBody = this.bodies.get(this.targetLock);
+            if (targetBody) {
+                const targetPos = (targetBody.container || targetBody.mesh).position;
+                this.camera.lookAt(targetPos);
+            }
+        } else {
+            // Free look with mouse - update camera rotation
+            this.camera.rotation.order = 'YXZ';
+            this.camera.rotation.y = this.fpsControls.yaw;
+            this.camera.rotation.x = this.fpsControls.pitch;
+        }
+
+        // Keep camera on or above surface
+        const distFromCenter = this.camera.position.distanceTo(bodyPos);
+        const minDist = bodyRadius * 1.001; // Just above surface
+
+        if (distFromCenter < minDist) {
+            // Push camera back to surface
+            const direction = this.camera.position.clone().sub(bodyPos).normalize();
+            this.camera.position.copy(bodyPos).add(direction.multiplyScalar(minDist));
         }
     }
 }
