@@ -1,205 +1,1047 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Solar System Simulation - Physics Engine</title>
-  <link rel="stylesheet" href="index.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System Simulation - Full</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000000;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Control Panel */
+        #control-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            width: 300px;
+            max-height: calc(100vh - 20px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 1000;
+        }
+
+        /* Scrollbar styling */
+        #control-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #control-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #control-panel::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #control-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 0, 0.5);
+        }
+
+        #control-panel h2 {
+            color: #00ff00;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+            padding-bottom: 10px;
+        }
+
+        /* Time Controls */
+        #time-controls {
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            color: #88ff88;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        button {
+            background: rgba(0, 255, 0, 0.1);
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: rgba(0, 255, 0, 0.2);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 5px;
+            background: rgba(0, 255, 0, 0.2);
+            outline: none;
+            border-radius: 5px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            background: #00ff00;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            background: #00ff00;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #speed-display {
+            color: #00ff00;
+            min-width: 40px;
+            text-align: right;
+        }
+
+        #time-display {
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            margin-top: 5px;
+        }
+
+        /* View Controls */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            accent-color: #00ff00;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin-bottom: 0;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        /* Body List */
+        #body-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        #body-list::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        #body-list::-webkit-scrollbar-track {
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        #body-list::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 0, 0.5);
+            border-radius: 5px;
+        }
+
+        .body-item {
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: background 0.2s;
+            font-size: 13px;
+        }
+
+        .body-item:hover {
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .body-item.selected {
+            background: rgba(0, 255, 0, 0.2);
+            border-left: 3px solid #00ff00;
+        }
+
+        /* Info Panel */
+        #info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            width: 250px;
+            display: none;
+            z-index: 1000;
+        }
+
+        #info-panel h3 {
+            color: #00ff00;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+            padding-bottom: 5px;
+        }
+
+        #info-panel p {
+            margin: 5px 0;
+            font-size: 13px;
+            color: #ccffcc;
+        }
+
+        /* Stats */
+        #stats {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #00ff00;
+        }
+
+        /* Help */
+        #help {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            font-size: 12px;
+            width: 200px;
+        }
+
+        #help h4 {
+            color: #00ff00;
+            margin-bottom: 8px;
+        }
+
+        #help p {
+            margin: 3px 0;
+            color: #88ff88;
+        }
+
+        /* Loading */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20px;
+            color: #00ff00;
+            z-index: 2000;
+        }
+
+        .spinner {
+            border: 3px solid rgba(0, 255, 0, 0.3);
+            border-top: 3px solid #00ff00;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Slider Styles */
+        .slider-group {
+            margin: 10px 0;
+        }
+
+        .slider-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #00ff00;
+            font-size: 12px;
+        }
+
+        .slider-group input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .slider-group span {
+            color: #ffff00;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-  <div id="loading">Загрузка солнечной системы...</div>
+    <div id="container"></div>
 
-  <div id="canvas-container"></div>
-
-  <!-- Main Controls Panel -->
-  <div id="controls" class="panel">
-    <h3>Управление временем</h3>
-
-    <div class="control-group">
-      <label>Скорость: <span id="speed-value">1x</span></label>
-      <input type="range" id="time-speed" min="0" max="10000" step="10" value="1">
-
-      <div class="button-group">
-        <button id="pause-btn">⏸️ Пауза</button>
-        <button id="reset-btn">🔄 Сброс</button>
-        <button id="reverse-btn">⏮️ Реверс</button>
-      </div>
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div>Initializing Solar System...</div>
+        <div class="spinner"></div>
     </div>
 
-    <h3>Масштаб</h3>
-    <div class="control-group">
-      <button id="scale-realistic" class="scale-btn">Реальный</button>
-      <button id="scale-visible" class="scale-btn active">Видимый</button>
-      <button id="scale-transition" class="scale-btn">Переход</button>
+    <!-- Control Panel -->
+    <div id="control-panel">
+        <h2>🪐 Solar System Controls</h2>
+
+        <!-- Time Controls -->
+        <div id="time-controls">
+            <div class="control-group">
+                <label>Time Control</label>
+                <div class="control-row">
+                    <button id="play-pause">⏸</button>
+                    <button id="reset" title="Reset time and all settings to defaults">⟲</button>
+                    <button id="reverse" title="Reverse time direction">⏮️</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Speed</label>
+                <div class="control-row">
+                    <input type="range" id="speed-slider" min="0" max="100" value="1" step="0.1">
+                    <span id="speed-display">1x</span>
+                </div>
+            </div>
+
+            <div id="time-display">Day: 0</div>
+        </div>
+
+        <!-- Date/Time Display -->
+        <div class="control-group" style="margin-top: 15px; padding: 10px; background: rgba(0, 255, 0, 0.05); border-radius: 5px;">
+            <label style="color: #88ff88; font-weight: bold;">📅 Current Date/Time</label>
+            <div id="current-date" style="color: #ffff00; font-size: 14px; margin-top: 5px;">
+                Jan 1, 2000, 12:00 UTC
+            </div>
+            <div id="days-since-epoch" style="color: #88ff88; font-size: 11px; margin-top: 3px;">
+                Days since J2000.0: 0.00
+            </div>
+        </div>
+
+        <!-- Date/Time Picker -->
+        <div class="control-group" style="margin-top: 10px; padding: 10px; background: rgba(0, 255, 0, 0.05); border-radius: 5px;">
+            <label style="color: #88ff88; font-weight: bold;">⏰ Jump to Date</label>
+            <div style="display: flex; gap: 5px; margin-top: 8px;">
+                <input type="date" id="date-input" value="2000-01-01" style="flex: 2; padding: 5px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ff00; color: #00ff00; border-radius: 3px; font-size: 12px;">
+                <input type="time" id="time-input" value="12:00" style="flex: 1; padding: 5px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ff00; color: #00ff00; border-radius: 3px; font-size: 12px;">
+                <button id="jump-to-date" style="padding: 5px 10px; font-size: 12px;">Go</button>
+            </div>
+            <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;">
+                <button class="quick-date" data-date="2000-01-01" style="padding: 4px 8px; font-size: 11px;">J2000</button>
+                <button class="quick-date" data-date="today" style="padding: 4px 8px; font-size: 11px;">Today</button>
+                <button class="quick-date" data-date="2030-01-01" style="padding: 4px 8px; font-size: 11px;">2030</button>
+                <button class="quick-date" data-date="2050-01-01" style="padding: 4px 8px; font-size: 11px;">2050</button>
+            </div>
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+                <label style="color: #88ff88; font-size: 10px; margin-bottom: 4px; display: block;">🌟 Planetary Parades:</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                    <button class="quick-date" data-date="2000-05-05" title="5-planet alignment visible from Earth" style="padding: 4px 8px; font-size: 11px;">May 2000</button>
+                    <button class="quick-date" data-date="2022-06-24" title="All planets visible in morning sky" style="padding: 4px 8px; font-size: 11px;">Jun 2022</button>
+                    <button class="quick-date" data-date="2025-02-28" title="7-planet parade (Venus, Saturn, Neptune, Mercury, Mars, Uranus, Jupiter)" style="padding: 4px 8px; font-size: 11px;">Feb 2025</button>
+                    <button class="quick-date" data-date="2040-09-08" title="Major planetary grouping" style="padding: 4px 8px; font-size: 11px;">Sep 2040</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Camera Views -->
+        <div class="control-group">
+            <label>📷 Camera Presets</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px;">
+                <button id="view-full-system" style="font-size: 11px; padding: 5px;">Full System</button>
+                <button id="view-inner-planets" style="font-size: 11px; padding: 5px;">Inner Planets</button>
+                <button id="view-outer-planets" style="font-size: 11px; padding: 5px;">Outer Planets</button>
+                <button id="view-earth-moon" style="font-size: 11px; padding: 5px;">Earth-Moon</button>
+                <button id="view-jupiter-system" style="font-size: 11px; padding: 5px;">Jupiter System</button>
+                <button id="view-saturn-system" style="font-size: 11px; padding: 5px;">Saturn System</button>
+            </div>
+        </div>
+
+        <!-- Follow Body - Populated dynamically from config -->
+        <div class="control-group">
+            <label>👁️ Follow Body</label>
+            <select id="follow-body" style="width: 100%; padding: 5px; background: rgba(0, 0, 0, 0.5); border: 1px solid #00ff00; color: #00ff00; border-radius: 3px; font-size: 12px;">
+                <option value="">Not following</option>
+                <!-- Options populated from celestialBodies.js -->
+            </select>
+            <div class="checkbox-group" style="margin-top: 8px;">
+                <input type="checkbox" id="preserve-zoom" checked>
+                <label for="preserve-zoom">Preserve Zoom</label>
+            </div>
+        </div>
+
+        <!-- View Options -->
+        <div class="control-group">
+            <label>View Options</label>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-orbits" checked>
+                <label for="show-orbits">Show Orbits</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-labels">
+                <label for="show-labels">Show Labels</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-trails">
+                <label for="show-trails">Show Trails</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-sun-glow" checked>
+                <label for="show-sun-glow">Show Sun Glow</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-grids">
+                <label for="show-grids">Show Lat/Long Grids</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="scale-mode">
+                <label for="scale-mode">Realistic Scale</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-axes">
+                <label for="show-axes">Show Axes</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-temperature">
+                <label for="show-temperature">Show Temperature</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-terminators">
+                <label for="show-terminators">Show Terminators</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-sun-rays">
+                <label for="show-sun-rays">Show Sun Rays</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-reflected-light">
+                <label for="show-reflected-light">Show Reflected Light</label>
+            </div>
+        </div>
+
+        <!-- Scale Controls -->
+        <div class="control-group">
+            <label>Scale Adjustments</label>
+
+            <div class="slider-group">
+                <label for="sun-scale">Sun Scale: <span id="sun-scale-value">1.0</span></label>
+                <input type="range" id="sun-scale" min="0.1" max="5" value="1" step="0.1">
+            </div>
+
+            <div class="slider-group">
+                <label for="planet-scale">Planet Scale: <span id="planet-scale-value">1.0</span></label>
+                <input type="range" id="planet-scale" min="0.1" max="10" value="1" step="0.1">
+            </div>
+
+            <div class="slider-group">
+                <label for="moon-scale">Moon Scale: <span id="moon-scale-value">10.0</span></label>
+                <input type="range" id="moon-scale" min="0.5" max="50" value="10" step="0.5">
+            </div>
+
+            <div class="slider-group">
+                <label for="moon-orbit-scale">Moon Orbit Scale: <span id="moon-orbit-scale-value">1.0</span></label>
+                <input type="range" id="moon-orbit-scale" min="0.1" max="10" value="1" step="0.1">
+            </div>
+        </div>
+
+        <!-- Celestial Bodies -->
+        <div class="control-group">
+            <label>Celestial Bodies (Click to focus)</label>
+            <div id="body-list">
+                <!-- Populated dynamically from celestialBodies.js -->
+            </div>
+        </div>
     </div>
 
-    <h3>Камера</h3>
-    <div class="control-group">
-      <button id="view-solar-system">☀️ Солнечная система</button>
-      <button id="view-inner">🌍 Внутренние планеты</button>
-      <button id="view-outer">🪐 Внешние планеты</button>
-      <button id="view-earth-moon">🌙 Земля-Луна</button>
-      <button id="view-jupiter">♃ Система Юпитера</button>
-      <button id="view-saturn">♄ Система Сатурна</button>
+    <!-- Info Panel -->
+    <div id="info-panel" style="position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); padding: 15px; border-radius: 10px; border: 1px solid rgba(0, 255, 0, 0.3); width: 280px; font-size: 12px; color: #88ff88; display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="color: #00ff00; margin: 0; font-size: 16px;">Selected Object</h3>
+            <button id="show-details-btn" style="background: rgba(0, 255, 0, 0.2); border: 1px solid #00ff00; color: #00ff00; padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: bold;">📋 Details</button>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <div style="color: #ffff00; font-size: 18px; margin-bottom: 5px;" id="selected-name">-</div>
+            <div>Type: <span id="selected-type">-</span></div>
+            <div>Parent: <span id="selected-parent">-</span></div>
+        </div>
+
+        <div style="margin-bottom: 10px; padding-top: 10px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+            <div style="color: #00ff00; margin-bottom: 5px;">Physical Properties</div>
+            <div>Radius: <span id="selected-radius">-</span> km</div>
+            <div>Mass: <span id="selected-mass">-</span></div>
+        </div>
+
+        <div style="margin-bottom: 10px; padding-top: 10px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+            <div style="color: #00ff00; margin-bottom: 5px;">Orbital Elements</div>
+            <div>Period: <span id="selected-orbital-period">-</span></div>
+            <div>Eccentricity: <span id="selected-eccentricity">-</span></div>
+            <div>Inclination: <span id="selected-inclination">-</span></div>
+            <div>Distance: <span id="selected-distance">-</span></div>
+        </div>
+
+        <div style="margin-bottom: 10px; padding-top: 10px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+            <div style="color: #00ff00; margin-bottom: 5px;">Rotation</div>
+            <div>Period: <span id="selected-rotation-period">-</span></div>
+            <div>Axial Tilt: <span id="selected-axial-tilt">-</span></div>
+        </div>
+
+        <div style="padding-top: 10px; border-top: 1px solid rgba(0, 255, 0, 0.2);">
+            <div style="color: #00ff00; margin-bottom: 5px;">Temperature</div>
+            <div>Min: <span id="selected-temp-min">-</span></div>
+            <div>Max: <span id="selected-temp-max">-</span></div>
+        </div>
     </div>
 
-    <h3>Следовать за объектом</h3>
-    <div class="control-group">
-      <select id="follow-body">
-        <option value="">Не следовать</option>
-        <optgroup label="Солнце">
-          <option value="sun">☀️ Солнце</option>
-        </optgroup>
-        <optgroup label="Планеты">
-          <option value="mercury">☿ Меркурий</option>
-          <option value="venus">♀ Венера</option>
-          <option value="earth">🌍 Земля</option>
-          <option value="mars">♂ Марс</option>
-          <option value="jupiter">♃ Юпитер</option>
-          <option value="saturn">♄ Сатурн</option>
-          <option value="uranus">♅ Уран</option>
-          <option value="neptune">♆ Нептун</option>
-        </optgroup>
-        <optgroup label="Карликовые планеты">
-          <option value="pluto">♇ Плутон</option>
-        </optgroup>
-        <optgroup label="Спутники">
-          <option value="moon">🌙 Луна</option>
-          <option value="phobos">Фобос</option>
-          <option value="deimos">Деймос</option>
-          <option value="io">Ио</option>
-          <option value="europa">Европа</option>
-          <option value="ganymede">Ганимед</option>
-          <option value="callisto">Каллисто</option>
-          <option value="titan">Титан</option>
-          <option value="triton">Тритон</option>
-        </optgroup>
-      </select>
+    <!-- Planet Details Modal -->
+    <div id="planet-details-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 1000; backdrop-filter: blur(5px);">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 30, 0.95); border: 2px solid rgba(0, 255, 0, 0.5); border-radius: 15px; padding: 30px; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 0 30px rgba(0, 255, 0, 0.3);">
+            <button id="close-modal" style="position: absolute; top: 10px; right: 10px; background: rgba(255, 0, 0, 0.3); border: 1px solid #ff0000; color: #ffffff; font-size: 20px; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">×</button>
+
+            <h2 style="color: #ffff00; margin-top: 0; text-align: center; font-size: 28px;" id="modal-title">Planet Details</h2>
+
+            <div id="modal-content" style="color: #88ff88; line-height: 1.8; font-size: 14px;">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
     </div>
 
-    <h3>Отображение</h3>
-    <div class="checkbox-group">
-      <label><input type="checkbox" id="show-orbits" checked> Орбиты</label>
-      <label><input type="checkbox" id="show-labels" checked> Подписи</label>
-      <label><input type="checkbox" id="show-grid" checked> Координатная сетка</label>
-      <label><input type="checkbox" id="show-axes"> Оси</label>
-      <label><input type="checkbox" id="show-temperature" checked> Карта температур</label>
-      <label><input type="checkbox" id="show-terminators"> Терминаторы</label>
-      <label><input type="checkbox" id="show-sun-rays"> Лучи солнца</label>
-      <label><input type="checkbox" id="show-galaxy-motion"> Движение галактики</label>
-      <label><input type="checkbox" id="show-trails"> Следы орбит</label>
-      <label><input type="checkbox" id="show-reflected"> Отражённый свет</label>
-    </div>
-  </div>
-
-  <!-- Information Panel -->
-  <div id="info-panel" class="panel">
-    <h3>Информация</h3>
-
-    <div class="info-group">
-      <h4>Время симуляции</h4>
-      <div>Дата: <span id="sim-date">-</span></div>
-      <div>День года: <span id="sim-day">-</span></div>
-      <div>Солнечное время: <span id="solar-time">-</span></div>
+    <!-- Stats -->
+    <div id="stats" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0, 0, 0, 0.8); padding: 10px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 11px; color: #00ff00; border: 1px solid rgba(0, 255, 0, 0.3);">
+        <div>FPS: <span id="fps-value">0</span></div>
+        <div>Objects: <span id="object-count">0</span></div>
+        <div>Polygons: <span id="polygon-count">0</span></div>
     </div>
 
-    <div class="info-group">
-      <h4>Выбранный объект</h4>
-      <div>Название: <span id="selected-name">-</span></div>
-      <div>Тип: <span id="selected-type">-</span></div>
-      <div>Родитель: <span id="selected-parent">-</span></div>
-      <div>Радиус: <span id="selected-radius">-</span> км</div>
-      <div>Орбитальный период: <span id="selected-orbital">-</span></div>
-      <div>Период вращения: <span id="selected-rotation">-</span></div>
-      <div>Расстояние от родителя: <span id="selected-distance">-</span></div>
+    <!-- Help -->
+    <div id="help">
+        <h4>🎮 Controls</h4>
+        <p>🖱️ Click Planet: Show info panel</p>
+        <p>📋 Details Button: Full info modal</p>
+        <p>🖱️ Right Drag: Rotate view</p>
+        <p>🖱️ Scroll: Zoom</p>
+        <p>⌨️ Space: Pause/Play</p>
+        <p>⌨️ R: Reset time</p>
+        <p>⌨️ 1-9: Focus planets</p>
     </div>
 
-    <div class="info-group">
-      <h4>Точка на поверхности</h4>
-      <div>Координаты: <span id="surface-coords">-</span></div>
-      <div>Температура: <span id="surface-temp">-</span></div>
-      <div>Угол солнца: <span id="sun-angle">-</span></div>
-      <div>Освещённость: <span id="illumination">-</span></div>
-    </div>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
-    <div class="info-group">
-      <h4>Статистика</h4>
-      <div>FPS: <span id="fps">-</span></div>
-      <div>Объектов: <span id="object-count">-</span></div>
-      <div>Полигонов: <span id="polygon-count">-</span></div>
-    </div>
-  </div>
+    <!-- Application -->
+    <script type="module">
+        import { SolarSystemApp } from './src/SolarSystemApp.js';
 
-  <!-- Planet Details Popup -->
-  <div id="planet-details" class="popup hidden">
-    <button class="close-btn">×</button>
-    <h2 id="detail-name">-</h2>
-    <div class="detail-content">
-      <div class="detail-row">
-        <span class="label">Диаметр:</span>
-        <span id="detail-diameter">-</span>
-      </div>
-      <div class="detail-row">
-        <span class="label">Масса:</span>
-        <span id="detail-mass">-</span>
-      </div>
-      <div class="detail-row">
-        <span class="label">Орбита:</span>
-        <span id="detail-orbit">-</span>
-      </div>
-      <div class="detail-row">
-        <span class="label">Атмосфера:</span>
-        <span id="detail-atmosphere">-</span>
-      </div>
-      <div class="detail-row">
-        <span class="label">Температура:</span>
-        <span id="detail-temperature">-</span>
-      </div>
-      <div class="detail-row">
-        <span class="label">Спутники:</span>
-        <span id="detail-moons">-</span>
-      </div>
-    </div>
-  </div>
+        // Initialize application
+        let app = null;
 
-  <!-- Load Three.js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Hide loading after a short delay
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                }, 1000);
 
-  <!-- Load application -->
-  <!-- Choose which version to load -->
-  <script type="module">
-    // Check URL parameter for version selection
-    const params = new URLSearchParams(window.location.search);
-    const version = params.get('version') || 'main';
+                // Create application
+                app = new SolarSystemApp('container');
+                window.app = app; // Expose for debugging
 
-    let scriptPath = './src/main.js'; // default with relative path
+                // IMPORTANT: Browser remembers form values after refresh
+                // So we apply whatever values are in the controls to the app
+                // This ensures UI and app state are synchronized
 
-    switch(version) {
-      case 'simple':
-        scriptPath = './src/main_simple.js';
-        console.log('Loading SIMPLE version for debugging');
-        break;
-      case 'debug':
-        window.location.href = 'debug_temperature.html';
-        break;
-      default:
-        console.log('Loading main version');
-    }
+                // Setup scale sliders and apply current values
+                const setupScaleSlider = (id, type, displayId) => {
+                    const slider = document.getElementById(id);
+                    const display = document.getElementById(displayId);
+                    if (slider && display) {
+                        // Apply current slider value on startup
+                        const currentValue = parseFloat(slider.value);
+                        display.textContent = currentValue.toFixed(1);
+                        app.updateScaleMultiplier(type, currentValue);
 
-    // Dynamically load the selected script
-    import(scriptPath).then((module) => {
-      console.log(`✅ Loaded ${scriptPath}`);
-      // Create and initialize the app directly
-      const MinimalSolarSystem = module.default;
-      const app = new MinimalSolarSystem();
-      app.initialize();
-      window.solarSystemApp = app;
-    }).catch(err => {
-      console.error(`❌ Failed to load ${scriptPath}:`, err);
-      document.getElementById('loading').innerHTML = `<span style="color: red">Error: ${err.message}</span>`;
-    });
-  </script>
-  <!-- <script type="module" src="src/main.js"></script> -->
+                        // Setup listener for changes
+                        slider.addEventListener('input', (e) => {
+                            const value = parseFloat(e.target.value);
+                            display.textContent = value.toFixed(1);
+                            app.updateScaleMultiplier(type, value);
+                        });
+                    }
+                };
+
+                setupScaleSlider('sun-scale', 'sun', 'sun-scale-value');
+                setupScaleSlider('planet-scale', 'planet', 'planet-scale-value');
+                setupScaleSlider('moon-scale', 'moon', 'moon-scale-value');
+                setupScaleSlider('moon-orbit-scale', 'moonOrbit', 'moon-orbit-scale-value');
+
+                // Setup speed slider
+                const speedSlider = document.getElementById('speed-slider');
+                const speedDisplay = document.getElementById('speed-display');
+                if (speedSlider && speedDisplay) {
+                    // Apply current value
+                    const currentSpeed = parseFloat(speedSlider.value);
+                    speedDisplay.textContent = currentSpeed.toFixed(1) + 'x';
+                    app.setTimeSpeed(currentSpeed);
+
+                    // Setup listener
+                    speedSlider.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value);
+                        speedDisplay.textContent = value.toFixed(1) + 'x';
+                        app.setTimeSpeed(value);
+                    });
+                }
+
+                // Setup play/pause button
+                const playPauseBtn = document.getElementById('play-pause');
+                if (playPauseBtn) {
+                    playPauseBtn.addEventListener('click', () => {
+                        app.togglePause();
+                        playPauseBtn.textContent = app.isPaused ? '▶️ Play' : '⏸️ Pause';
+                    });
+                }
+
+                // Setup reset button
+                const resetBtn = document.getElementById('reset');
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', () => {
+                        app.reset();
+                        // Also reset controls to defaults
+                        if (speedSlider) {
+                            speedSlider.value = 1;
+                            speedDisplay.textContent = '1.0x';
+                            app.setTimeSpeed(1);
+                        }
+                        if (scaleMode) {
+                            scaleMode.checked = false;
+                            app.setScaleMode('visible');
+                        }
+                        // Reset scale sliders to defaults
+                        document.getElementById('sun-scale').value = 1;
+                        document.getElementById('sun-scale-value').textContent = '1.0';
+                        document.getElementById('planet-scale').value = 1;
+                        document.getElementById('planet-scale-value').textContent = '1.0';
+                        document.getElementById('moon-scale').value = 10;
+                        document.getElementById('moon-scale-value').textContent = '10.0';
+                        document.getElementById('moon-orbit-scale').value = 1;
+                        document.getElementById('moon-orbit-scale-value').textContent = '1.0';
+                        // Apply default scale values
+                        app.updateScaleMultiplier('sun', 1);
+                        app.updateScaleMultiplier('planet', 1);
+                        app.updateScaleMultiplier('moon', 10);
+                        app.updateScaleMultiplier('moonOrbit', 1);
+                        // Reset sun glow checkbox
+                        const sunGlowCheckbox = document.getElementById('show-sun-glow');
+                        if (sunGlowCheckbox) {
+                            sunGlowCheckbox.checked = true;
+                            app.toggleSunGlow(true);
+                        }
+                        // Reset grids checkbox
+                        const gridsCheckbox = document.getElementById('show-grids');
+                        if (gridsCheckbox) {
+                            gridsCheckbox.checked = false;
+                            app.toggleGrids(false);
+                        }
+                    });
+                }
+
+                // Reverse button - toggle time direction
+                const reverseBtn = document.getElementById('reverse');
+                if (reverseBtn) {
+                    reverseBtn.addEventListener('click', () => {
+                        app.setTimeSpeed(-app.timeSpeed);
+                        // Update speed display
+                        if (speedDisplay) {
+                            speedDisplay.textContent = `${app.timeSpeed.toFixed(1)}x`;
+                        }
+                        // Update slider value (absolute value)
+                        if (speedSlider) {
+                            speedSlider.value = Math.abs(app.timeSpeed);
+                        }
+                        // Visual feedback on button
+                        reverseBtn.style.backgroundColor = app.timeSpeed < 0 ? 'rgba(255, 0, 0, 0.3)' : 'rgba(0, 255, 0, 0.1)';
+                    });
+                }
+
+                // Camera View Presets
+                document.getElementById('view-full-system')?.addEventListener('click', () => {
+                    app.viewFullSystem();
+                    // Update follow body dropdown
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = '';
+                });
+
+                document.getElementById('view-inner-planets')?.addEventListener('click', () => {
+                    app.viewInnerPlanets();
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = '';
+                });
+
+                document.getElementById('view-outer-planets')?.addEventListener('click', () => {
+                    app.viewOuterPlanets();
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = '';
+                });
+
+                document.getElementById('view-earth-moon')?.addEventListener('click', () => {
+                    app.viewEarthMoon();
+                    // Update follow body dropdown to show Earth
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = 'EARTH';
+                });
+
+                document.getElementById('view-jupiter-system')?.addEventListener('click', () => {
+                    app.viewJupiterSystem();
+                    // Update follow body dropdown to show Jupiter
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = 'JUPITER';
+                });
+
+                document.getElementById('view-saturn-system')?.addEventListener('click', () => {
+                    app.viewSaturnSystem();
+                    // Update follow body dropdown to show Saturn
+                    const followSelect = document.getElementById('follow-body');
+                    if (followSelect) followSelect.value = 'SATURN';
+                });
+
+                // Setup checkboxes
+                const scaleMode = document.getElementById('scale-mode');
+                if (scaleMode) {
+                    // Apply current state
+                    if (scaleMode.checked) {
+                        app.setScaleMode('realistic');
+                    }
+
+                    // Setup listener
+                    scaleMode.addEventListener('change', (e) => {
+                        app.setScaleMode(e.target.checked ? 'realistic' : 'visible');
+                    });
+                }
+
+                // Setup Show Orbits checkbox
+                const showOrbits = document.getElementById('show-orbits');
+                if (showOrbits) {
+                    // Apply current state
+                    app.toggleOrbits(showOrbits.checked);
+
+                    // Setup listener
+                    showOrbits.addEventListener('change', (e) => {
+                        app.toggleOrbits(e.target.checked);
+                    });
+                }
+
+                // Setup Show Labels checkbox
+                const showLabels = document.getElementById('show-labels');
+                if (showLabels) {
+                    // Apply current state
+                    app.toggleLabels(showLabels.checked);
+
+                    // Setup listener
+                    showLabels.addEventListener('change', (e) => {
+                        app.toggleLabels(e.target.checked);
+                    });
+                }
+
+                // Setup Show Trails checkbox
+                const showTrails = document.getElementById('show-trails');
+                if (showTrails) {
+                    // Apply current state
+                    app.toggleTrails(showTrails.checked);
+
+                    // Setup listener
+                    showTrails.addEventListener('change', (e) => {
+                        app.toggleTrails(e.target.checked);
+                    });
+                }
+
+                // Setup Show Sun Glow checkbox
+                const showSunGlow = document.getElementById('show-sun-glow');
+                if (showSunGlow) {
+                    // Apply current state
+                    app.toggleSunGlow(showSunGlow.checked);
+
+                    // Setup listener
+                    showSunGlow.addEventListener('change', (e) => {
+                        app.toggleSunGlow(e.target.checked);
+                    });
+                }
+
+                // Setup Show Grids checkbox
+                const showGrids = document.getElementById('show-grids');
+                if (showGrids) {
+                    // Apply current state
+                    app.toggleGrids(showGrids.checked);
+
+                    // Setup listener
+                    showGrids.addEventListener('change', (e) => {
+                        app.toggleGrids(e.target.checked);
+                    });
+                }
+
+                // Setup Show Temperature checkbox
+                const showTemperature = document.getElementById('show-temperature');
+                if (showTemperature) {
+                    // Apply current state
+                    app.toggleTemperature(showTemperature.checked);
+
+                    // Setup listener
+                    showTemperature.addEventListener('change', (e) => {
+                        app.toggleTemperature(e.target.checked);
+                    });
+                }
+
+                // Setup Show Terminators checkbox
+                const showTerminators = document.getElementById('show-terminators');
+                if (showTerminators) {
+                    // Apply current state
+                    app.toggleTerminators(showTerminators.checked);
+
+                    // Setup listener
+                    showTerminators.addEventListener('change', (e) => {
+                        app.toggleTerminators(e.target.checked);
+                    });
+                }
+
+                // Setup Show Axes checkbox
+                const showAxes = document.getElementById('show-axes');
+                if (showAxes) {
+                    // Apply current state
+                    app.toggleAxes(showAxes.checked);
+
+                    // Setup listener
+                    showAxes.addEventListener('change', (e) => {
+                        app.toggleAxes(e.target.checked);
+                    });
+                }
+
+                // Setup Show Sun Rays checkbox
+                const showSunRays = document.getElementById('show-sun-rays');
+                if (showSunRays) {
+                    // Apply current state
+                    app.toggleSunRays(showSunRays.checked);
+
+                    // Setup listener
+                    showSunRays.addEventListener('change', (e) => {
+                        app.toggleSunRays(e.target.checked);
+                    });
+                }
+
+                // Setup Show Reflected Light checkbox
+                const showReflectedLight = document.getElementById('show-reflected-light');
+                if (showReflectedLight) {
+                    // Apply current state
+                    app.toggleReflectedLight(showReflectedLight.checked);
+
+                    // Setup listener
+                    showReflectedLight.addEventListener('change', (e) => {
+                        app.toggleReflectedLight(e.target.checked);
+                    });
+                }
+
+                // Setup Date/Time Picker
+                import('./src/domain/services/DateTimeService.js').then(module => {
+                    const { parseDateTime, dateToSimulationTime, getDateInputValue, getTimeInputValue, simulationTimeToDate } = module;
+
+                    // Jump to date button
+                    const jumpToDateBtn = document.getElementById('jump-to-date');
+                    const dateInput = document.getElementById('date-input');
+                    const timeInput = document.getElementById('time-input');
+
+                    if (jumpToDateBtn && dateInput && timeInput) {
+                        jumpToDateBtn.addEventListener('click', () => {
+                            try {
+                                const dateStr = dateInput.value;
+                                const timeStr = timeInput.value;
+                                const date = parseDateTime(dateStr, timeStr);
+                                const simTime = dateToSimulationTime(date);
+
+                                app.setTime(simTime);
+                                app.updateBodies(0); // Force immediate update
+                                app.updateDateDisplay();
+                            } catch (error) {
+                                console.error('Invalid date/time:', error);
+                                alert('Invalid date or time. Please check your input.');
+                            }
+                        });
+                    }
+
+                    // Quick date buttons
+                    document.querySelectorAll('.quick-date').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const dateStr = btn.dataset.date;
+                            let date;
+
+                            if (dateStr === 'today') {
+                                date = new Date();
+                            } else {
+                                date = parseDateTime(dateStr, '12:00');
+                            }
+
+                            const simTime = dateToSimulationTime(date);
+                            app.setTime(simTime);
+                            app.updateBodies(0); // Force immediate update
+                            app.updateDateDisplay();
+
+                            // Update input fields
+                            dateInput.value = getDateInputValue(date);
+                            timeInput.value = getTimeInputValue(date);
+                        });
+                    });
+
+                    // Initialize date display
+                    app.updateDateDisplay();
+                });
+
+                // Body list is now populated dynamically from config
+                // Event handlers attached in attachBodyListHandlers()
+
+                // Setup Details button in info panel
+                const showDetailsBtn = document.getElementById('show-details-btn');
+                if (showDetailsBtn) {
+                    showDetailsBtn.addEventListener('click', () => {
+                        app.showSelectedBodyDetails();
+                    });
+                }
+
+                // Setup modal close button
+                const closeModalBtn = document.getElementById('close-modal');
+                if (closeModalBtn) {
+                    closeModalBtn.addEventListener('click', () => {
+                        app.hidePlanetDetailsModal();
+                    });
+                }
+
+                // Close modal when clicking outside
+                const modal = document.getElementById('planet-details-modal');
+                if (modal) {
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) {
+                            app.hidePlanetDetailsModal();
+                        }
+                    });
+                }
+
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case ' ':
+                            e.preventDefault();
+                            app.togglePause();
+                            playPauseBtn.textContent = app.isPaused ? '▶️ Play' : '⏸️ Pause';
+                            break;
+                        case 'r':
+                            app.reset();
+                            break;
+                        case '1':
+                            app.focusOnBody('MERCURY');
+                            break;
+                        case '2':
+                            app.focusOnBody('VENUS');
+                            break;
+                        case '3':
+                            app.focusOnBody('EARTH');
+                            break;
+                        case '4':
+                            app.focusOnBody('MARS');
+                            break;
+                        case '5':
+                            app.focusOnBody('JUPITER');
+                            break;
+                        case '6':
+                            app.focusOnBody('SATURN');
+                            break;
+                        case '7':
+                            app.focusOnBody('URANUS');
+                            break;
+                        case '8':
+                            app.focusOnBody('NEPTUNE');
+                            break;
+                        case '9':
+                            app.focusOnBody('PLUTO');
+                            break;
+                    }
+                });
+
+                // Update time display
+                setInterval(() => {
+                    if (app) {
+                        const time = app.getCurrentTime();
+                        document.getElementById('time-display').textContent = `Day: ${time.toFixed(1)}`;
+                    }
+                }, 100);
+
+                // FPS counter
+                let lastTime = performance.now();
+                let frames = 0;
+                function updateFPS() {
+                    frames++;
+                    const currentTime = performance.now();
+                    if (currentTime - lastTime >= 1000) {
+                        document.getElementById('stats').textContent = `FPS: ${frames}`;
+                        frames = 0;
+                        lastTime = currentTime;
+                    }
+                    requestAnimationFrame(updateFPS);
+                }
+                updateFPS();
+
+            } catch (error) {
+                console.error('Failed to initialize application:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #ff0000;">
+                        Error: ${error.message}<br>
+                        Check console for details
+                    </div>
+                `;
+            }
+        });
+    </script>
 </body>
 </html>

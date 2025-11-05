@@ -217,6 +217,15 @@ export const CELESTIAL_BODIES = {
       intensity: 0.15,
       distance: 10,
       color: 0x4488ff
+    },
+
+    // Camera preset for this body
+    cameraPreset: {
+      enabled: true,
+      name: 'Earth-Moon',
+      description: 'Close-up of Earth-Moon system',
+      cameraOffset: { x: 5, y: 3, z: 5 }, // Camera position relative to body
+      follow: true // Enable follow mode when this preset is activated
     }
   },
 
@@ -429,6 +438,15 @@ export const CELESTIAL_BODIES = {
       intensity: 0.12,
       distance: 50,
       color: 0xffddaa
+    },
+
+    // Camera preset for Jupiter system
+    cameraPreset: {
+      enabled: true,
+      name: 'Jupiter System',
+      description: 'Jupiter and its Galilean moons',
+      cameraOffset: { x: 20, y: 10, z: 20 },
+      follow: true
     }
   },
 
@@ -627,6 +645,15 @@ export const CELESTIAL_BODIES = {
       intensity: 0.10,
       distance: 40,
       color: 0xffffcc
+    },
+
+    // Camera preset for Saturn system
+    cameraPreset: {
+      enabled: true,
+      name: 'Saturn System',
+      description: 'Saturn and its rings',
+      cameraOffset: { x: 25, y: 15, z: 25 },
+      follow: true
     }
   },
 
@@ -1048,3 +1075,34 @@ export function getTerrestrialPlanets() {
   return ['MERCURY', 'VENUS', 'EARTH', 'MARS']
     .map(id => CELESTIAL_BODIES[id]);
 }
+
+/**
+ * System-wide camera presets (not tied to specific bodies)
+ * These are absolute positions relative to the star
+ */
+export const SYSTEM_CAMERA_PRESETS = [
+  {
+    id: 'full-system',
+    name: 'Full System',
+    description: 'View entire solar system from above',
+    cameraPosition: { x: 0, y: 500, z: 500 },
+    targetPosition: { x: 0, y: 0, z: 0 },
+    follow: null // Don't follow any body
+  },
+  {
+    id: 'inner-planets',
+    name: 'Inner Planets',
+    description: 'Focus on Mercury, Venus, Earth, Mars',
+    cameraPosition: { x: 0, y: 30, z: 30 },
+    targetPosition: { x: 0, y: 0, z: 0 },
+    follow: null
+  },
+  {
+    id: 'outer-planets',
+    name: 'Outer Planets',
+    description: 'Focus on Jupiter, Saturn, Uranus, Neptune',
+    cameraPosition: { x: 0, y: 400, z: 400 },
+    targetPosition: { x: 0, y: 0, z: 0 },
+    follow: null
+  }
+];

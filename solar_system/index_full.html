@@ -437,11 +437,11 @@
                 <label for="show-sun-glow">Show Sun Glow</label>
             </div>
             <div class="checkbox-group">
-                <input type="checkbox" id="show-grids">
+                <input type="checkbox" id="show-grids" checked>
                 <label for="show-grids">Show Lat/Long Grids</label>
             </div>
             <div class="checkbox-group">
-                <input type="checkbox" id="scale-mode">
+                <input type="checkbox" id="scale-mode" checked>
                 <label for="scale-mode">Realistic Scale</label>
             </div>
             <div class="checkbox-group">
@@ -481,8 +481,8 @@
             </div>
 
             <div class="slider-group">
-                <label for="moon-scale">Moon Scale: <span id="moon-scale-value">10.0</span></label>
-                <input type="range" id="moon-scale" min="0.5" max="50" value="10" step="0.5">
+                <label for="moon-scale">Moon Scale: <span id="moon-scale-value">1.0</span></label>
+                <input type="range" id="moon-scale" min="0.5" max="50" value="1" step="0.5">
             </div>
 
             <div class="slider-group">
@@ -590,39 +590,65 @@
                     document.getElementById('loading').style.display = 'none';
                 }, 1000);
 
+                // Load saved scale values BEFORE creating app
+                const loadSavedScale = (id, defaultValue) => {
+                    const savedValue = localStorage.getItem(`solarSystem_${id}`);
+                    return savedValue !== null ? parseFloat(savedValue) : defaultValue;
+                };
+
+                const savedSunScale = loadSavedScale('sun-scale', 1.0);
+                const savedPlanetScale = loadSavedScale('planet-scale', 1.0);
+                const savedMoonScale = loadSavedScale('moon-scale', 1.0);
+                const savedMoonOrbitScale = loadSavedScale('moon-orbit-scale', 1.0);
+
                 // Create application
                 app = new SolarSystemApp('container');
                 window.app = app; // Expose for debugging
 
+                // Apply saved scale values to BOTH modes (realistic and visible)
+                // This ensures scales persist when switching modes
+                app.scaleMultipliers.realistic.sun = savedSunScale;
+                app.scaleMultipliers.realistic.planet = savedPlanetScale;
+                app.scaleMultipliers.realistic.moon = savedMoonScale;
+                app.scaleMultipliers.realistic.moonOrbit = savedMoonOrbitScale;
+
+                app.scaleMultipliers.visible.sun = savedSunScale;
+                app.scaleMultipliers.visible.planet = savedPlanetScale;
+                app.scaleMultipliers.visible.moon = savedMoonScale;
+                app.scaleMultipliers.visible.moonOrbit = savedMoonOrbitScale;
+
+                // Rebuild bodies with new scales
+                app.updateScale();
+
                 // Setup scale sliders with localStorage persistence
-                const setupScaleSlider = (id, type, displayId, defaultValue) => {
+                const setupScaleSlider = (id, type, displayId, savedValue) => {
                     const slider = document.getElementById(id);
                     const display = document.getElementById(displayId);
                     if (slider && display) {
-                        // Load saved value from localStorage, or use default
-                        const savedValue = localStorage.getItem(`solarSystem_${id}`);
-                        const currentValue = savedValue !== null ? parseFloat(savedValue) : defaultValue;
-
-                        // Apply to UI and app
-                        slider.value = currentValue;
-                        display.textContent = currentValue.toFixed(1);
-                        app.updateScaleMultiplier(type, currentValue);
+                        // Apply saved value to UI
+                        slider.value = savedValue;
+                        display.textContent = savedValue.toFixed(1);
 
                         // Setup listener for changes
                         slider.addEventListener('input', (e) => {
                             const value = parseFloat(e.target.value);
                             display.textContent = value.toFixed(1);
-                            app.updateScaleMultiplier(type, value);
+
+                            // Update BOTH modes so it persists when switching
+                            app.scaleMultipliers.realistic[type] = value;
+                            app.scaleMultipliers.visible[type] = value;
+                            app.updateScale();
+
                             // Save to localStorage
                             localStorage.setItem(`solarSystem_${id}`, value);
                         });
                     }
                 };
 
-                setupScaleSlider('sun-scale', 'sun', 'sun-scale-value', 1.0);
-                setupScaleSlider('planet-scale', 'planet', 'planet-scale-value', 1.0);
-                setupScaleSlider('moon-scale', 'moon', 'moon-scale-value', 10.0);
-                setupScaleSlider('moon-orbit-scale', 'moonOrbit', 'moon-orbit-scale-value', 1.0);
+                setupScaleSlider('sun-scale', 'sun', 'sun-scale-value', savedSunScale);
+                setupScaleSlider('planet-scale', 'planet', 'planet-scale-value', savedPlanetScale);
+                setupScaleSlider('moon-scale', 'moon', 'moon-scale-value', savedMoonScale);
+                setupScaleSlider('moon-orbit-scale', 'moonOrbit', 'moon-orbit-scale-value', savedMoonOrbitScale);
 
                 // Setup speed slider
                 const speedSlider = document.getElementById('speed-slider');
@@ -662,8 +688,8 @@
                             app.setTimeSpeed(1);
                         }
                         if (scaleMode) {
-                            scaleMode.checked = false;
-                            app.setScaleMode('visible');
+                            scaleMode.checked = true;
+                            app.setScaleMode('realistic');
                         }
                         // Reset scale sliders to defaults
                         document.getElementById('sun-scale').value = 1;
@@ -672,17 +698,25 @@
                         document.getElementById('planet-scale').value = 1;
                         document.getElementById('planet-scale-value').textContent = '1.0';
                         localStorage.setItem('solarSystem_planet-scale', 1);
-                        document.getElementById('moon-scale').value = 10;
-                        document.getElementById('moon-scale-value').textContent = '10.0';
-                        localStorage.setItem('solarSystem_moon-scale', 10);
+                        document.getElementById('moon-scale').value = 1;
+                        document.getElementById('moon-scale-value').textContent = '1.0';
+                        localStorage.setItem('solarSystem_moon-scale', 1);
                         document.getElementById('moon-orbit-scale').value = 1;
                         document.getElementById('moon-orbit-scale-value').textContent = '1.0';
                         localStorage.setItem('solarSystem_moon-orbit-scale', 1);
-                        // Apply default scale values
-                        app.updateScaleMultiplier('sun', 1);
-                        app.updateScaleMultiplier('planet', 1);
-                        app.updateScaleMultiplier('moon', 10);
-                        app.updateScaleMultiplier('moonOrbit', 1);
+
+                        // Apply default scale values to BOTH modes
+                        app.scaleMultipliers.realistic.sun = 1;
+                        app.scaleMultipliers.realistic.planet = 1;
+                        app.scaleMultipliers.realistic.moon = 1;
+                        app.scaleMultipliers.realistic.moonOrbit = 1;
+                        app.scaleMultipliers.visible.sun = 1;
+                        app.scaleMultipliers.visible.planet = 1;
+                        app.scaleMultipliers.visible.moon = 1;
+                        app.scaleMultipliers.visible.moonOrbit = 1;
+
+                        // Rebuild bodies with reset scales
+                        app.updateScale();
                         // Reset sun glow checkbox
                         const sunGlowCheckbox = document.getElementById('show-sun-glow');
                         if (sunGlowCheckbox) {
@@ -692,8 +726,8 @@
                         // Reset grids checkbox
                         const gridsCheckbox = document.getElementById('show-grids');
                         if (gridsCheckbox) {
-                            gridsCheckbox.checked = false;
-                            app.toggleGrids(false);
+                            gridsCheckbox.checked = true;
+                            app.toggleGrids(true);
                         }
                     });
                 }
@@ -899,6 +933,15 @@
                     const jumpToDateBtn = document.getElementById('jump-to-date');
                     const dateInput = document.getElementById('date-input');
                     const timeInput = document.getElementById('time-input');
+
+                    // Set date picker to today by default
+                    if (dateInput) {
+                        const today = new Date();
+                        const yyyy = today.getFullYear();
+                        const mm = String(today.getMonth() + 1).padStart(2, '0');
+                        const dd = String(today.getDate()).padStart(2, '0');
+                        dateInput.value = `${yyyy}-${mm}-${dd}`;
+                    }
 
                     if (jumpToDateBtn && dateInput && timeInput) {
                         jumpToDateBtn.addEventListener('click', () => {
