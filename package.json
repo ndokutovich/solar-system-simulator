@@ -1,0 +1,28 @@
+{
+  "name": "solar-system-simulator",
+  "version": "1.0.0",
+  "description": "Interactive 3D solar system simulator with real astronomical data, accurate orbital mechanics, and data-driven architecture",
+  "main": "solar_system/index.html",
+  "type": "module",
+  "scripts": {
+    "download:three": "node scripts/download-three.js",
+    "clean": "node scripts/clean-public.js",
+    "build": "node scripts/clean-public.js && node scripts/build.js",
+    "serve": "http-server . -p 8000 -o /solar_system/index.html",
+    "serve:public": "http-server public -p 8000"
+  },
+  "keywords": [
+    "solar-system",
+    "astronomy",
+    "three.js",
+    "3d",
+    "simulation",
+    "orbital-mechanics",
+    "education"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

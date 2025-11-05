@@ -47,8 +47,13 @@ mercury_terminator/
 
 ## Running the Application
 
+### Development Mode
+
 ```bash
-# Serve with any HTTP server (ES6 modules required)
+# Serve with npm script
+npm run serve
+
+# Or use any HTTP server (ES6 modules required)
 python -m http.server 8000
 # or
 npx http-server
@@ -57,6 +62,16 @@ npx http-server
 ```
 
 Or use the provided `run.bat` script.
+
+### First Time Setup
+
+Download Three.js locally (one-time):
+
+```bash
+npm run download:three
+```
+
+This downloads Three.js r128 and OrbitControls to `solar_system/lib/three/`.
 
 ## Architecture Principles
 

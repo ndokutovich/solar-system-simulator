@@ -1,14 +1,33 @@
-# Mercury Terminator Visualization
+# Solar System Simulator
 
-Interactive 3D visualization of Mercury's terminator zones, demonstrating the planet's unique 3:2 spin-orbit resonance and extreme temperature variations.
+Interactive 3D solar system simulator with real astronomical data, accurate orbital mechanics, temperature visualization, and a fully data-driven architecture ready for any star system.
 
 ## Quick Start
 
+### Development Mode
+
 ```bash
-# Serve with any HTTP server (ES6 modules require server)
-python -m http.server 8000
-# or
-npx http-server -p 8000
+# Serve from source
+npm run serve
+
+# Open in browser (opens automatically)
+http://localhost:8000/solar_system/index.html
+```
+
+### Production Build
+
+```bash
+# First time setup - download Three.js locally
+npm run download:three
+
+# Install dependencies (only http-server)
+npm install
+
+# Build to public/ directory
+npm run build
+
+# Serve production build
+npm run serve:public
 
 # Open in browser
 http://localhost:8000
@@ -16,202 +35,310 @@ http://localhost:8000
 
 ## Features
 
-- **Accurate 3:2 Resonance**: Mercury rotates 3 times per 2 orbits
-- **Dynamic Temperature Map**: Real-time visualization of -173°C to +427°C
-- **Orbital Mechanics**: Elliptical orbit with adjustable eccentricity
-- **Surface View Mode**: Explore Mercury from ground level (WASD controls)
-- **Multiple Camera Views**: Orbital, equator, pole perspectives
-- **Interactive Controls**: Time speed, pause/play, view modes
-- **Temperature Tracking**: Mouse-over coordinates and temperature
+### Solar System
+- ✅ **9 Planets** - Mercury through Pluto (dynamically loaded from config)
+- ✅ **11 Major Moons** - Luna, Io, Europa, Ganymede, Callisto, Titan, and more
+- ✅ **Real Astronomical Data** - NASA planetary data
+- ✅ **Accurate Orbital Mechanics** - Keplerian orbits with true eccentricity
+- ✅ **3:2 Spin-Orbit Resonance** - Mercury rotates correctly
+
+### Time Control
+- ✅ **Play/Pause** - Control simulation
+- ✅ **Reverse Time** - Run simulation backward
+- ✅ **Speed Control** - 0-100x real-time speed
+- ✅ **Jump to Date** - Any date/time with presets
+- ✅ **Starts at Today** - Real current planetary positions
+
+### Camera & Views
+- ✅ **Follow Any Body** - Camera tracks planets and moons
+- ✅ **6 Camera Presets** - Full System, Inner/Outer Planets, planetary systems
+- ✅ **Preserve Zoom** - Point at body vs follow with body
+- ✅ **Keyboard Shortcuts** - 1-9 for quick planet selection
+
+### Visualization
+- ✅ **Orbits** - Color-coded by type (planet/moon)
+- ✅ **Labels** - Dynamic from config
+- ✅ **Trails** - Path history
+- ✅ **Lat/Long Grids** - Rotate with planets
+- ✅ **Temperature Maps** - Real surface temperatures
+- ✅ **Day/Night Terminators** - Sunlight boundaries
+- ✅ **Coordinate Axes** - On all bodies
+- ✅ **Sun Rays** - Temperature gradient visualization
+- ✅ **Reflected Light** - Earthshine and more
+
+### Scale Modes
+- ✅ **Realistic Scale** - True proportions
+- ✅ **Visible Scale** - Logarithmic for visibility
+- ✅ **Individual Sliders** - Sun, Planet, Moon, Moon Orbit scales
+- ✅ **localStorage Persistence** - Settings saved across refreshes
 
 ## Architecture
 
-This project follows **Clean Code** principles with a **layered architecture**:
+### Config-Driven Design
+
+**ALL** celestial body data lives in a single declarative config file:
+
+```javascript
+// solar_system/src/config/celestialBodies.js
+export const CELESTIAL_BODIES = {
+  EARTH: {
+    emoji: '🌍',
+    type: 'planet',
+    parent: 'sun',
+    radius_km: 6371,
+    mass_kg: 5.97237e24,
+    orbital: { /* ... */ },
+    rotation: { /* ... */ },
+    temperature: { /* ... */ },
+    rendering: { /* ... */ }
+  },
+  // ... all other bodies
+};
+```
+
+**Why this matters:**
+- Add a planet → it appears everywhere automatically
+- Remove a planet → it disappears from all UI
+- Change planet color → updates instantly
+- **Swap star systems** → just replace the config file!
+
+### Clean Architecture
 
 ```
-src/
-├── config/          # Configuration & constants
-├── domain/          # Pure business logic (testable)
-│   ├── models/      # State management
-│   └── services/    # Physics & calculations
-├── presentation/    # Three.js rendering
-│   └── components/  # Scene, Camera, UI, Mercury, Sun
-└── infrastructure/  # Utilities & validation
+solar_system/
+├── index.html                    # Entry point
+├── index.css                     # Styles
+├── manifest.json                 # PWA manifest
+├── *.svg                         # Icons
+├── src/
+│   ├── SolarSystemApp.js         # Main orchestrator
+│   ├── config/
+│   │   ├── celestialBodies.js    # ⭐ ALL body data (single source of truth)
+│   │   ├── constants.js          # Physics/rendering constants
+│   │   └── epoch.js              # J2000.0 epoch
+│   ├── domain/                   # Pure business logic (no Three.js)
+│   │   └── services/
+│   │       ├── OrbitalMechanics.js
+│   │       ├── RotationalMechanics.js
+│   │       ├── DateTimeService.js
+│   │       └── CoordinateTransforms.js
+│   └── infrastructure/
+│       └── utils/
+│           └── ValidationUtils.js
+└── scripts/                      # Build scripts
+    ├── clean-public.js
+    └── build.js
 ```
 
 ### Key Principles
 
-- ✅ **SOLID Architecture**: Single responsibility, dependency inversion
-- ✅ **Fail-Fast Validation**: Clear error messages at boundaries
-- ✅ **Immutable State**: All state updates return new objects
-- ✅ **Pure Functions**: Business logic has no side effects
-- ✅ **Zero Magic Numbers**: All constants in config
-- ✅ **Testable**: Domain layer has no Three.js dependencies
+- ✅ **100% Config-Driven** - No hardcoded planet references
+- ✅ **Domain Independence** - Pure functions, no Three.js in domain layer
+- ✅ **localStorage Persistence** - All user settings saved
+- ✅ **Fail-Fast Validation** - Clear error messages
+- ✅ **Immutable Updates** - State changes without mutation
+- ✅ **Star System Ready** - Swap to any star system instantly
 
-## Project Structure
+## Build System
+
+The project uses a simple Node.js build system with **no bundler** - just file copying.
+
+### Commands
+
+```bash
+# Download Three.js locally (first time only)
+npm run download:three
+
+# Clean and build to public/
+npm run build
+
+# Just clean public/ directory
+npm run clean
+
+# Serve development version
+npm run serve
+
+# Serve production build
+npm run serve:public
+```
+
+### Build Output (`public/` directory)
 
 ```
-mercury_terminator/
-├── index.html              # Entry point
-├── index.css               # Styles
-├── src/                    # Refactored modular code
-│   ├── main.js            # Bootstrap
-│   ├── Application.js     # Main orchestrator
-│   ├── config/
-│   │   └── constants.js
-│   ├── domain/
-│   │   ├── models/
-│   │   │   ├── MercuryModel.js
-│   │   │   └── ObserverModel.js
-│   │   └── services/
-│   │       ├── PhysicsService.js
-│   │       └── TemperatureService.js
-│   ├── presentation/
-│   │   └── components/
-│   │       ├── SceneComponent.js
-│   │       ├── CameraController.js
-│   │       ├── SunComponent.js
-│   │       ├── MercuryComponent.js
-│   │       └── UIController.js
-│   └── infrastructure/
-│       └── utils/
-│           ├── ValidationUtils.js
-│           └── ThreeUtils.js
-├── CLAUDE.md              # Development guide
-├── ARCHITECTURE.md        # Architecture diagrams
-├── REFACTORING.md         # Refactoring documentation
-└── conversation.md        # Project history
-
-Legacy files (can be deleted):
-├── index.js (OLD)         # Deprecated monolithic code
-└── mercury_terminator.html # V1
+public/
+├── index.html          # Main entry point
+├── index.css           # Styles
+├── manifest.json       # PWA manifest
+├── *.svg              # Icons (favicon, PWA icons)
+├── src/               # Source code (ES6 modules)
+└── lib/               # Three.js (local copy)
+    └── three/
+        ├── three.min.js
+        └── OrbitControls.js
 ```
+
+### Features
+
+- ✅ **No bundler** - ES6 modules work directly in browser
+- ✅ **Local Three.js** - No CDN dependency
+- ✅ **Cross-platform** - Works on Windows, Mac, Linux
+- ✅ **Fast builds** - Just file copying (~1 second)
+- ✅ **Simple** - Pure Node.js, no webpack/rollup/vite
 
 ## Documentation
 
-- **[CLAUDE.md](CLAUDE.md)** - Development guide, coding standards, common tasks
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed architecture diagrams and data flow
-- **[REFACTORING.md](REFACTORING.md)** - Complete refactoring documentation
-- **[conversation.md](conversation.md)** - Project development history
+### Main Documentation
+- **[CLAUDE.md](CLAUDE.md)** - Complete development guide, architecture principles, common tasks
+- **[solar_system/README.md](solar_system/README.md)** - Solar system specific documentation
+- **[LICENSE](LICENSE)** - MIT License
+
+### Feature Documentation
+- **[solar_system/SESSION_COMPLETE.md](solar_system/SESSION_COMPLETE.md)** - Comprehensive feature summary
+- **[solar_system/IMPLEMENTATION_SUMMARY.md](solar_system/IMPLEMENTATION_SUMMARY.md)** - Follow Body & Reverse Time implementation
+- **[solar_system/PLANETARY_PARADES.md](solar_system/PLANETARY_PARADES.md)** - Reference dates for planetary alignments
 
 ## Controls
 
-### Time Controls
-- **Time Speed Slider**: Adjust simulation speed (1x - 1000x)
-- **Pause/Play**: Toggle animation
-- **Reset**: Reset to initial state
+### Time
+- **Play/Pause** - Start/stop simulation
+- **Speed Slider** - 0-100x real-time (with reverse)
+- **Jump to Date** - Any date/time with quick presets
+- **Reset** - Reset all settings to defaults
 
-### View Controls
-- **Orbital View**: Overview of Mercury's orbit
-- **Equator View**: Side view from equator
-- **Pole View**: Top-down view from north pole
-- **Surface View**: First-person view from Mercury's surface
-  - **WASD**: Move around the surface
-  - **Mouse**: Look around
+### Camera
+- **Follow Dropdown** - Follow any planet or moon
+- **Camera Presets** - 6 preset views (Full System, Inner Planets, etc.)
+- **Preserve Zoom** - Keep camera distance or follow body
+- **Keyboard** - Press 1-9 to jump to planets
+- **Mouse** - Orbit, pan, zoom (standard Three.js controls)
 
-### Display Controls
-- **Grid**: Toggle coordinate grid
-- **Terminators**: Show/hide morning and evening terminator lines
-- **Temperature Map**: Toggle temperature visualization
-- **Orbit**: Show/hide orbital path
-- **Axes**: Toggle planet axes
+### View Options
+- **Show Orbits** - Display orbital paths
+- **Show Labels** - Body names and emojis
+- **Show Trails** - Path history
+- **Show Lat/Long Grids** - Coordinate grids on bodies
+- **Show Axes** - Coordinate axes on all bodies
+- **Show Temperature** - Real surface temperature maps
+- **Show Terminator** - Day/night boundaries
+- **Show Sun Rays** - Temperature gradient visualization
+- **Show Reflected Light** - Earthshine and similar effects
 
-### Orbital Controls
-- **Eccentricity**: Adjust orbital eccentricity (0-0.4)
+### Scale
+- **Realistic/Visible** - Toggle between true scale and logarithmic
+- **Sun Scale** - Adjust sun size (0.5-50x)
+- **Planet Scale** - Adjust planet sizes (0.5-50x)
+- **Moon Scale** - Adjust moon sizes (0.5-50x)
+- **Moon Orbit Scale** - Adjust moon orbit sizes (0.5-50x)
 
-### Special Locations
-- **Hot Pole**: Jump to subsolar point (0°, 180°)
-- **Warm Pole**: Jump to 90° longitude points
+### Object Info
+- Click any body in the **Celestial Bodies** list to focus camera
+- Click **Details** button to see full properties modal
+- Real-time stats: position, distance, temperature, orbital phase
 
 ## Technology Stack
 
-- **Three.js r128**: 3D rendering engine
-- **Vanilla JavaScript ES6**: Modules, classes, pure functions
-- **HTML5 Canvas**: Temperature texture generation
-- **CSS3**: UI styling with backdrop filters
+- **Three.js r128** - 3D rendering engine (local copy, no CDN)
+- **Vanilla JavaScript ES6** - Modules, classes, pure functions
+- **Node.js** - Build system and download script only
+- **HTML5 Canvas** - Texture generation
+- **CSS3** - UI styling with backdrop filters
+- **PWA** - Progressive Web App ready (manifest, icons)
+
+**No build tools, no transpilation, no bundler** - Just pure ES6 modules!
 
 ## Development
 
-### Code Quality Standards
+See **[CLAUDE.md](CLAUDE.md)** for complete development guide including:
 
-- **Max function length**: 20 lines
-- **Max file size**: 200 lines (exceptions documented)
-- **Validation**: All public functions validate inputs
-- **Error messages**: Clear and actionable
-- **State management**: Immutable updates only
+### Quick Tasks
+- **Adding a planet** - Just add to `celestialBodies.js` config
+- **Adding a camera preset** - Config-based, no code changes
+- **Changing defaults** - Update constructor in `SolarSystemApp.js`
+- **Adding reflected light** - Enable in body's config
 
-### Adding Features
+### Code Standards
+- **Config-driven** - No hardcoded planet references
+- **Pure domain functions** - No Three.js in domain layer
+- **Fail-fast validation** - Clear error messages
+- **Immutable updates** - State changes return new objects
+- **localStorage persistence** - All user settings saved
 
-1. **Domain logic first**: Add pure functions to services
-2. **Add constants**: Centralize in config/constants.js
-3. **Create component**: Add presentation component if needed
-4. **Integrate**: Wire up in Application.js
+### Star System Portability
 
-See [CLAUDE.md](CLAUDE.md) for detailed development guide.
+Want to simulate a different star system?
 
-## Physics & Science
+1. Create new config file (e.g., `betelgeuseBodies.js`)
+2. Define the star and its planets
+3. Update import in `SolarSystemApp.js`
+4. Done! Everything else works automatically
 
-### Mercury Facts
-- **Orbital Period**: 87.969 Earth days
-- **Rotation Period**: 58.646 Earth days (sidereal)
-- **Solar Day**: 175.938 Earth days (sunrise to sunrise)
-- **Resonance**: 3:2 spin-orbit (unique in solar system)
-- **Eccentricity**: 0.206 (highly elliptical orbit)
+The architecture is **100% ready** for any star system.
 
-### Temperature
-- **Day Side**: Up to +427°C (hot enough to melt lead)
-- **Night Side**: Down to -173°C
-- **Terminator**: Transition zone, includes 0°C to +50°C "comfort zone"
-- **Terminator Speed**: ~3.5 km/h at equator (varies with orbital position)
+## Astronomical Data
 
-### Terminator Zones
-Mercury has two terminators:
-- **Morning Terminator** (cyan): Where sun is rising
-- **Evening Terminator** (orange): Where sun is setting
+All orbital and physical data sourced from:
+- **NASA Planetary Fact Sheets**
+- **JPL Horizons System**
+- **IAU standards** (J2000.0 epoch)
 
-At the poles, both terminators converge, creating unique thermal zones.
+### Mercury's 3:2 Resonance
+Mercury uniquely rotates **3 times per 2 orbits**, creating:
+- 176 Earth-day solar day (sunrise to sunrise)
+- Temperature extremes: -173°C to +427°C
+- "Hot poles" at 0° and 180° longitude
+- "Warm poles" at 90° and 270° longitude
 
 ## Performance
 
-- **60 FPS**: Smooth animation loop
-- **2M pixels**: Temperature texture (2048x1024)
-- **20,000 stars**: Background star field
-- **Lightweight**: Pure math calculations, Three.js renders
+- **60 FPS** - Smooth animation loop
+- **~20 Bodies** - 1 star + 9 planets + 11 moons
+- **Keplerian Orbits** - Lightweight math calculations
+- **Dynamic Textures** - Generated once on load
+- **Optimized Rendering** - Three.js hardware acceleration
+
+**Performance Tips:**
+- Disable features you don't need (Grids, Temperature, Trails)
+- Use Realistic Scale to reduce visual clutter
+- Reduce individual scale multipliers
 
 ## Browser Compatibility
 
-- **Modern browsers**: Chrome 80+, Firefox 75+, Safari 13+, Edge 80+
-- **Requires WebGL**: Hardware-accelerated 3D graphics
-- **ES6 Modules**: Must be served via HTTP (not file://)
+- **Modern Browsers** - Chrome 80+, Firefox 75+, Safari 13+, Edge 80+
+- **Requires WebGL** - Hardware-accelerated 3D graphics
+- **ES6 Modules** - Must be served via HTTP (not `file://`)
+- **PWA Support** - Can be installed as standalone app
 
 ## Known Limitations
 
-1. **Route visualization**: Polar/terminator routes not yet implemented
-2. **Retrograde sun path**: Surface view calculation is stubbed
-3. **Temperature shader**: Currently CPU-based (could use GPU shader)
-4. **OrbitControls**: Uses Three.js built-in (not abstracted)
+1. **No Asteroids/Comets** - Only major planets and moons
+2. **No Spacecraft** - Could be added to config
+3. **Simplified Physics** - Keplerian orbits (no perturbations)
+4. **No Rings** - Saturn rings not visualized
+5. **Single Star** - Currently designed for one-star systems
+
+## Future Possibilities
+
+- 🌌 Multiple star systems (binary stars, Betelgeuse, Alpha Centauri)
+- 🛸 Spacecraft trajectories (Voyager, New Horizons)
+- ☄️ Asteroids and comets
+- 🪐 Saturn's rings (particle system)
+- 🔭 Exoplanet systems
+- 🎮 VR mode
+- 📱 Touch controls
+- 💾 Save/load simulation states
 
 ## Credits
 
-Based on astronomical research about Mercury's unique characteristics:
-- 3:2 spin-orbit resonance
-- Extreme temperature variations
-- Terminator zone analysis
-
-Built with clean code principles and SOLID architecture.
+Built with:
+- **NASA planetary data** - Accurate astronomical measurements
+- **Three.js** - 3D rendering engine
+- **Clean Architecture** - SOLID principles, config-driven design
 
 ## License
 
-Educational project - Free to use and modify.
-
-## Version History
-
-- **v2.0** (Current): Full refactoring with clean architecture
-- **v1.0**: Initial monolithic implementation
+MIT License - See [LICENSE](LICENSE) file
 
 ---
 
-**Total Code**: ~2,300 lines across 14 well-organized modules
-**Maintainability**: Excellent
-**Testability**: 60% (domain layer fully testable)
-**Performance**: 60 FPS with negligible overhead
+**Interactive 3D Solar System Simulator**
+**Config-Driven • Accurate Physics • Ready for Any Star System**

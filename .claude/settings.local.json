@@ -14,7 +14,9 @@
       "Bash(node test_coordinates.js:*)",
       "Bash(node tests/test_orbital_mechanics.js:*)",
       "Bash(node:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run copy:src:*)"
     ],
     "deny": [],
     "ask": []
