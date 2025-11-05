@@ -594,17 +594,17 @@
                 app = new SolarSystemApp('container');
                 window.app = app; // Expose for debugging
 
-                // IMPORTANT: Browser remembers form values after refresh
-                // So we apply whatever values are in the controls to the app
-                // This ensures UI and app state are synchronized
-
-                // Setup scale sliders and apply current values
-                const setupScaleSlider = (id, type, displayId) => {
+                // Setup scale sliders with localStorage persistence
+                const setupScaleSlider = (id, type, displayId, defaultValue) => {
                     const slider = document.getElementById(id);
                     const display = document.getElementById(displayId);
                     if (slider && display) {
-                        // Apply current slider value on startup
-                        const currentValue = parseFloat(slider.value);
+                        // Load saved value from localStorage, or use default
+                        const savedValue = localStorage.getItem(`solarSystem_${id}`);
+                        const currentValue = savedValue !== null ? parseFloat(savedValue) : defaultValue;
+
+                        // Apply to UI and app
+                        slider.value = currentValue;
                         display.textContent = currentValue.toFixed(1);
                         app.updateScaleMultiplier(type, currentValue);
 
@@ -613,14 +613,16 @@
                             const value = parseFloat(e.target.value);
                             display.textContent = value.toFixed(1);
                             app.updateScaleMultiplier(type, value);
+                            // Save to localStorage
+                            localStorage.setItem(`solarSystem_${id}`, value);
                         });
                     }
                 };
 
-                setupScaleSlider('sun-scale', 'sun', 'sun-scale-value');
-                setupScaleSlider('planet-scale', 'planet', 'planet-scale-value');
-                setupScaleSlider('moon-scale', 'moon', 'moon-scale-value');
-                setupScaleSlider('moon-orbit-scale', 'moonOrbit', 'moon-orbit-scale-value');
+                setupScaleSlider('sun-scale', 'sun', 'sun-scale-value', 1.0);
+                setupScaleSlider('planet-scale', 'planet', 'planet-scale-value', 1.0);
+                setupScaleSlider('moon-scale', 'moon', 'moon-scale-value', 10.0);
+                setupScaleSlider('moon-orbit-scale', 'moonOrbit', 'moon-orbit-scale-value', 1.0);
 
                 // Setup speed slider
                 const speedSlider = document.getElementById('speed-slider');
@@ -666,12 +668,16 @@
                         // Reset scale sliders to defaults
                         document.getElementById('sun-scale').value = 1;
                         document.getElementById('sun-scale-value').textContent = '1.0';
+                        localStorage.setItem('solarSystem_sun-scale', 1);
                         document.getElementById('planet-scale').value = 1;
                         document.getElementById('planet-scale-value').textContent = '1.0';
+                        localStorage.setItem('solarSystem_planet-scale', 1);
                         document.getElementById('moon-scale').value = 10;
                         document.getElementById('moon-scale-value').textContent = '10.0';
+                        localStorage.setItem('solarSystem_moon-scale', 10);
                         document.getElementById('moon-orbit-scale').value = 1;
                         document.getElementById('moon-orbit-scale-value').textContent = '1.0';
+                        localStorage.setItem('solarSystem_moon-orbit-scale', 1);
                         // Apply default scale values
                         app.updateScaleMultiplier('sun', 1);
                         app.updateScaleMultiplier('planet', 1);
