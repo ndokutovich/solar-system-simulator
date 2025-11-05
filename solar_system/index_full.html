@@ -441,21 +441,21 @@
                 <label for="scale-mode">Realistic Scale</label>
             </div>
             <!-- TODO: Implement additional display options -->
-            <div class="checkbox-group" style="opacity: 0.5;">
-                <input type="checkbox" id="show-axes" disabled>
-                <label for="show-axes" style="cursor: not-allowed;">Show Axes</label>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-axes">
+                <label for="show-axes">Show Axes</label>
             </div>
-            <div class="checkbox-group" style="opacity: 0.5;">
-                <input type="checkbox" id="show-temperature" disabled>
-                <label for="show-temperature" style="cursor: not-allowed;">Show Temperature</label>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-temperature">
+                <label for="show-temperature">Show Temperature</label>
             </div>
-            <div class="checkbox-group" style="opacity: 0.5;">
-                <input type="checkbox" id="show-terminators" disabled>
-                <label for="show-terminators" style="cursor: not-allowed;">Show Terminators</label>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-terminators">
+                <label for="show-terminators">Show Terminators</label>
             </div>
-            <div class="checkbox-group" style="opacity: 0.5;">
-                <input type="checkbox" id="show-sun-rays" disabled>
-                <label for="show-sun-rays" style="cursor: not-allowed;">Show Sun Rays</label>
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-sun-rays">
+                <label for="show-sun-rays">Show Sun Rays</label>
             </div>
             <div class="checkbox-group" style="opacity: 0.5;">
                 <input type="checkbox" id="show-reflected-light" disabled>
@@ -506,9 +506,12 @@
         </div>
     </div>
 
-    <!-- Info Panel - TODO: Populate with selected object data -->
+    <!-- Info Panel -->
     <div id="info-panel" style="position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); padding: 15px; border-radius: 10px; border: 1px solid rgba(0, 255, 0, 0.3); width: 280px; font-size: 12px; color: #88ff88; display: none;">
-        <h3 style="color: #00ff00; margin-bottom: 10px; font-size: 16px;">Selected Object</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="color: #00ff00; margin: 0; font-size: 16px;">Selected Object</h3>
+            <button id="show-details-btn" style="background: rgba(0, 255, 0, 0.2); border: 1px solid #00ff00; color: #00ff00; padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: bold;">📋 Details</button>
+        </div>
 
         <div style="margin-bottom: 10px;">
             <div style="color: #ffff00; font-size: 18px; margin-bottom: 5px;" id="selected-name">-</div>
@@ -543,18 +546,32 @@
         </div>
     </div>
 
-    <!-- Stats - TODO: Add object count and polygon count -->
+    <!-- Planet Details Modal -->
+    <div id="planet-details-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 1000; backdrop-filter: blur(5px);">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 30, 0.95); border: 2px solid rgba(0, 255, 0, 0.5); border-radius: 15px; padding: 30px; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 0 30px rgba(0, 255, 0, 0.3);">
+            <button id="close-modal" style="position: absolute; top: 10px; right: 10px; background: rgba(255, 0, 0, 0.3); border: 1px solid #ff0000; color: #ffffff; font-size: 20px; width: 35px; height: 35px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">×</button>
+
+            <h2 style="color: #ffff00; margin-top: 0; text-align: center; font-size: 28px;" id="modal-title">Planet Details</h2>
+
+            <div id="modal-content" style="color: #88ff88; line-height: 1.8; font-size: 14px;">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats -->
     <div id="stats" style="position: absolute; bottom: 10px; left: 10px; background: rgba(0, 0, 0, 0.8); padding: 10px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 11px; color: #00ff00; border: 1px solid rgba(0, 255, 0, 0.3);">
         <div>FPS: <span id="fps-value">0</span></div>
-        <div style="opacity: 0.5;">Objects: <span id="object-count">-</span></div>
-        <div style="opacity: 0.5;">Polygons: <span id="polygon-count">-</span></div>
+        <div>Objects: <span id="object-count">0</span></div>
+        <div>Polygons: <span id="polygon-count">0</span></div>
     </div>
 
     <!-- Help -->
     <div id="help">
         <h4>🎮 Controls</h4>
-        <p>🖱️ Left Click: Select body</p>
-        <p>🖱️ Right Click: Rotate view</p>
+        <p>🖱️ Click Planet: Show info panel</p>
+        <p>📋 Details Button: Full info modal</p>
+        <p>🖱️ Right Drag: Rotate view</p>
         <p>🖱️ Scroll: Zoom</p>
         <p>⌨️ Space: Pause/Play</p>
         <p>⌨️ R: Reset time</p>
@@ -814,6 +831,54 @@
                     });
                 }
 
+                // Setup Show Temperature checkbox
+                const showTemperature = document.getElementById('show-temperature');
+                if (showTemperature) {
+                    // Apply current state
+                    app.toggleTemperature(showTemperature.checked);
+
+                    // Setup listener
+                    showTemperature.addEventListener('change', (e) => {
+                        app.toggleTemperature(e.target.checked);
+                    });
+                }
+
+                // Setup Show Terminators checkbox
+                const showTerminators = document.getElementById('show-terminators');
+                if (showTerminators) {
+                    // Apply current state
+                    app.toggleTerminators(showTerminators.checked);
+
+                    // Setup listener
+                    showTerminators.addEventListener('change', (e) => {
+                        app.toggleTerminators(e.target.checked);
+                    });
+                }
+
+                // Setup Show Axes checkbox
+                const showAxes = document.getElementById('show-axes');
+                if (showAxes) {
+                    // Apply current state
+                    app.toggleAxes(showAxes.checked);
+
+                    // Setup listener
+                    showAxes.addEventListener('change', (e) => {
+                        app.toggleAxes(e.target.checked);
+                    });
+                }
+
+                // Setup Show Sun Rays checkbox
+                const showSunRays = document.getElementById('show-sun-rays');
+                if (showSunRays) {
+                    // Apply current state
+                    app.toggleSunRays(showSunRays.checked);
+
+                    // Setup listener
+                    showSunRays.addEventListener('change', (e) => {
+                        app.toggleSunRays(e.target.checked);
+                    });
+                }
+
                 // Setup Date/Time Picker
                 import('./src/domain/services/DateTimeService.js').then(module => {
                     const { parseDateTime, dateToSimulationTime, getDateInputValue, getTimeInputValue, simulationTimeToDate } = module;
@@ -870,6 +935,7 @@
 
                 // Setup body list clicks
                 document.querySelectorAll('.body-item').forEach(item => {
+                    // Single click - focus
                     item.addEventListener('click', (e) => {
                         // Remove selected from all
                         document.querySelectorAll('.body-item').forEach(i => i.classList.remove('selected'));
@@ -879,6 +945,32 @@
                         app.focusOnBody(e.target.dataset.body);
                     });
                 });
+
+                // Setup Details button in info panel
+                const showDetailsBtn = document.getElementById('show-details-btn');
+                if (showDetailsBtn) {
+                    showDetailsBtn.addEventListener('click', () => {
+                        app.showSelectedBodyDetails();
+                    });
+                }
+
+                // Setup modal close button
+                const closeModalBtn = document.getElementById('close-modal');
+                if (closeModalBtn) {
+                    closeModalBtn.addEventListener('click', () => {
+                        app.hidePlanetDetailsModal();
+                    });
+                }
+
+                // Close modal when clicking outside
+                const modal = document.getElementById('planet-details-modal');
+                if (modal) {
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) {
+                            app.hidePlanetDetailsModal();
+                        }
+                    });
+                }
 
                 // Keyboard controls
                 document.addEventListener('keydown', (e) => {

@@ -45,6 +45,7 @@ export class SolarSystemApp {
         this.trails = new Map();
         this.labels = new Map();
         this.grids = new Map();
+        this.terminators = new Map();
 
         // Visibility flags
         this.showOrbits = true;
@@ -52,6 +53,10 @@ export class SolarSystemApp {
         this.showTrails = false;
         this.showSunGlow = true;
         this.showGrids = false;
+        this.showTemperature = false;
+        this.showTerminators = false;
+        this.showAxes = false;
+        this.showSunRays = false;
 
         // Three.js components
         this.scene = null;
@@ -62,6 +67,14 @@ export class SolarSystemApp {
         // UI elements
         this.stats = null;
         this.infoPanel = null;
+
+        // Performance tracking
+        this.lastTime = performance.now();
+        this.frameTime = 0;
+        this.fps = 0;
+
+        // Selected body tracking
+        this.selectedBodyKey = null;
 
         // Initialize
         this.init();
@@ -184,16 +197,103 @@ export class SolarSystemApp {
         glow.visible = this.showSunGlow; // Respect initial visibility setting
         sun.add(glow);
 
+        // Add coordinate axes to Sun (X=red, Y=green, Z=blue)
+        // Axes size relative to Sun radius
+        const axesSize = sunRadius * 3;
+        this.axesHelper = new THREE.AxesHelper(axesSize);
+        this.axesHelper.visible = this.showAxes;
+        sun.add(this.axesHelper);
+
         this.scene.add(sun);
         this.bodies.set('SUN', {
             mesh: sun,
             glow: glow, // Store reference to glow sphere
             data: sunData,
-            type: 'star'
+            type: 'star',
+            axes: this.axesHelper
         });
+
+        // Create sun rays
+        this.createSunRays(sunRadius);
 
         // Create label for Sun
         this.createLabel('SUN', sunData.name_en || 'Sun', sun, sunRadius);
+    }
+
+    createSunRays(sunRadius) {
+        const rayCount = 64; // More rays for better coverage
+        const rayLength = 50; // Extend to 50 AU (beyond Neptune at ~30 AU)
+        const group = new THREE.Group();
+
+        for (let i = 0; i < rayCount; i++) {
+            // Create rays in all directions (spherical distribution)
+            const phi = Math.acos(2 * Math.random() - 1); // Polar angle
+            const theta = Math.random() * Math.PI * 2; // Azimuthal angle
+
+            const direction = new THREE.Vector3(
+                Math.sin(phi) * Math.cos(theta),
+                Math.sin(phi) * Math.sin(theta),
+                Math.cos(phi)
+            );
+
+            const start = direction.clone().multiplyScalar(sunRadius * 1.1);
+            const end = direction.clone().multiplyScalar(rayLength);
+
+            // Create gradient with vertex colors (hot yellow/white near sun -> cold blue far away)
+            const positions = [];
+            const colors = [];
+            const segments = 20; // Subdivide ray for smooth gradient
+
+            for (let j = 0; j <= segments; j++) {
+                const t = j / segments;
+                const point = start.clone().lerp(end, t);
+                positions.push(point.x, point.y, point.z);
+
+                // Color gradient based on distance: yellow/white (hot) -> orange -> red -> blue (cold)
+                // Represents temperature decrease with distance from sun
+                const color = new THREE.Color();
+                if (t < 0.05) {
+                    // Very close to sun - white hot (5500K+)
+                    color.setRGB(1.0, 1.0, 0.95);
+                } else if (t < 0.15) {
+                    // Inner region - yellow (Mercury zone)
+                    color.setRGB(1.0, 1.0, 0.6);
+                } else if (t < 0.3) {
+                    // Venus-Earth zone - yellow-orange
+                    color.setRGB(1.0, 0.8, 0.3);
+                } else if (t < 0.5) {
+                    // Mars-Jupiter zone - orange-red
+                    color.setRGB(1.0, 0.5, 0.2);
+                } else if (t < 0.7) {
+                    // Outer planets - red-purple
+                    color.setRGB(0.8, 0.3, 0.4);
+                } else {
+                    // Far region - purple-blue (very cold)
+                    const blend = (t - 0.7) / 0.3;
+                    color.setRGB(0.5 - blend * 0.3, 0.2, 0.5 + blend * 0.3);
+                }
+
+                colors.push(color.r, color.g, color.b);
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+            const material = new THREE.LineBasicMaterial({
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.4,
+                linewidth: 2
+            });
+
+            const ray = new THREE.Line(geometry, material);
+            group.add(ray);
+        }
+
+        group.visible = this.showSunRays;
+        this.scene.add(group);
+        this.sunRays = group;
     }
 
     createCelestialBody(key, bodyData) {
@@ -209,19 +309,20 @@ export class SolarSystemApp {
         const radius = this.getScaledRadius(bodyData.radius_km, bodyData.type, parentRadiusKm);
         const geometry = new THREE.SphereGeometry(radius, 32, 16);
 
-        // Determine material based on body type and data
-        let material;
+        // Create standard material for all bodies
+        const standardMaterial = new THREE.MeshPhongMaterial({
+            color: this.getBodyColor(key, bodyData),
+            shininess: 30
+        });
 
-        if (bodyData.temperature && key === 'MERCURY') {
-            // Special temperature shader for Mercury
-            material = this.createTemperatureMaterial(bodyData);
-        } else {
-            // Standard material for other bodies
-            material = new THREE.MeshPhongMaterial({
-                color: this.getBodyColor(key, bodyData),
-                shininess: 30
-            });
+        // Create temperature material if temperature data exists
+        let temperatureMaterial = null;
+        if (bodyData.temperature && bodyData.temperature.min_c !== undefined && bodyData.temperature.max_c !== undefined) {
+            temperatureMaterial = this.createTemperatureMaterial(bodyData);
         }
+
+        // Use appropriate material based on showTemperature flag
+        const material = (this.showTemperature && temperatureMaterial) ? temperatureMaterial : standardMaterial;
 
         // Create container for planets that have moons (to separate rotation from orbit lines)
         const isParentOfMoons = !bodyData.parent || bodyData.parent === 'sun';
@@ -248,6 +349,13 @@ export class SolarSystemApp {
             mesh.castShadow = true;
             mesh.receiveShadow = true;
         }
+
+        // Add coordinate axes to this body (X=red, Y=green, Z=blue)
+        // Axes size relative to body radius
+        const axesSize = radius * 3;
+        const axes = new THREE.AxesHelper(axesSize);
+        axes.visible = this.showAxes;
+        mesh.add(axes); // Add to mesh so it rotates with the body
 
         // Create orbit visualization
         if (bodyData.orbital) {
@@ -284,7 +392,10 @@ export class SolarSystemApp {
             container: container, // Store container reference
             data: bodyData,
             type: bodyData.type,
-            material: material
+            material: material,
+            standardMaterial: standardMaterial,
+            temperatureMaterial: temperatureMaterial,
+            axes: axes // Store axes reference
         });
 
         // Create label for this body
@@ -879,6 +990,7 @@ export class SolarSystemApp {
         // This is a simplified approach - in production you'd update existing geometries
         const gridsWereVisible = this.showGrids;
         const trailsWereVisible = this.showTrails;
+        const terminatorsWereVisible = this.showTerminators;
 
         this.clearBodies();
         this.initBodies();
@@ -894,6 +1006,19 @@ export class SolarSystemApp {
                 // IMPORTANT: Always add grid to MESH (not container) so it rotates with the planet
                 this.createLatLongGrid(key, radius * 1.01, mesh);
             }
+        }
+
+        // Recreate terminators if they were visible
+        if (terminatorsWereVisible) {
+            for (const [key, body] of this.bodies) {
+                if (key !== 'SUN') {
+                    const mesh = body.mesh;
+                    const radius = mesh.geometry.parameters.radius;
+                    const parentObject = body.container || body.mesh;
+                    this.createTerminator(key, radius * 1.01, parentObject);
+                }
+            }
+            this.updateTerminators();
         }
 
         // Recreate trails if they were visible
@@ -985,10 +1110,28 @@ export class SolarSystemApp {
 
         if (intersects.length > 0) {
             const selected = intersects[0].object;
-            this.showBodyInfo(selected.name);
 
-            // Focus camera on selected body
-            this.controls.target.copy(selected.position);
+            // Find the body key from the mesh name
+            let bodyKey = null;
+            for (const [key, body] of this.bodies.entries()) {
+                if (body.mesh === selected) {
+                    bodyKey = key;
+                    break;
+                }
+            }
+
+            if (bodyKey) {
+                // Use the same function as clicking in the list - unifies behavior
+                this.focusOnBody(bodyKey);
+
+                // Update visual selection in the body list
+                document.querySelectorAll('.body-item').forEach(item => {
+                    item.classList.remove('selected');
+                    if (item.dataset.body === bodyKey) {
+                        item.classList.add('selected');
+                    }
+                });
+            }
         }
     }
 
@@ -996,65 +1139,6 @@ export class SolarSystemApp {
         // Update mouse position for hover effects
         this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    }
-
-    showBodyInfo(name) {
-        if (!this.infoPanel) return;
-
-        // Find body data
-        let bodyData = null;
-        let bodyKey = null;
-        for (const [key, data] of Object.entries(CELESTIAL_BODIES)) {
-            if (data.name === name) {
-                bodyData = data;
-                bodyKey = key;
-                break;
-            }
-        }
-
-        if (!bodyData) return;
-
-        // Build info HTML
-        let html = `<h3>${bodyData.name}</h3>`;
-        html += `<p>Type: ${bodyData.type}</p>`;
-
-        if (bodyData.radius_km) {
-            html += `<p>Radius: ${bodyData.radius_km.toLocaleString()} km</p>`;
-        }
-
-        if (bodyData.orbital) {
-            const orbital = bodyData.orbital;
-            if (orbital.period_days) {
-                html += `<p>Orbital Period: ${orbital.period_days.toFixed(2)} days</p>`;
-            }
-            if (orbital.semi_major_axis_au) {
-                html += `<p>Distance: ${orbital.semi_major_axis_au.toFixed(3)} AU</p>`;
-            }
-            if (orbital.eccentricity) {
-                html += `<p>Eccentricity: ${orbital.eccentricity.toFixed(3)}</p>`;
-            }
-        }
-
-        if (bodyData.rotation) {
-            const rotation = bodyData.rotation;
-            if (rotation.period_days) {
-                html += `<p>Rotation Period: ${Math.abs(rotation.period_days).toFixed(2)} days</p>`;
-                if (rotation.period_days < 0) {
-                    html += `<p>(Retrograde)</p>`;
-                }
-            }
-            if (rotation.resonance) {
-                html += `<p>Resonance: ${rotation.resonance.rotations}:${rotation.resonance.orbits}</p>`;
-            }
-        }
-
-        if (bodyData.temperature) {
-            const temp = bodyData.temperature;
-            html += `<p>Temperature: ${temp.min_c}°C to ${temp.max_c}°C</p>`;
-        }
-
-        this.infoPanel.innerHTML = html;
-        this.infoPanel.style.display = 'block';
     }
 
     onWindowResize() {
@@ -1071,6 +1155,16 @@ export class SolarSystemApp {
 
         // Update trails
         this.updateTrails();
+
+        // Update temperature shader sun directions (if temperature mode is active)
+        if (this.showTemperature) {
+            this.updateTemperatureSunDirections();
+        }
+
+        // Update terminator orientations (if terminators are visible)
+        if (this.showTerminators) {
+            this.updateTerminators();
+        }
 
         // Update date/time display (throttled - only update every 10 frames)
         if (!this.frameCount) this.frameCount = 0;
@@ -1094,8 +1188,51 @@ export class SolarSystemApp {
         // Update controls
         this.controls.update();
 
+        // Update stats (throttled - every 30 frames for smooth display)
+        if (this.frameCount % 30 === 0) {
+            this.updateStats();
+        }
+
         // Render
         this.renderer.render(this.scene, this.camera);
+    }
+
+    /**
+     * Update performance stats display
+     */
+    updateStats() {
+        // Calculate FPS
+        const currentTime = performance.now();
+        this.frameTime = currentTime - this.lastTime;
+        this.fps = Math.round(1000 / this.frameTime);
+        this.lastTime = currentTime;
+
+        // Update FPS display
+        const fpsElement = document.getElementById('fps-value');
+        if (fpsElement) {
+            fpsElement.textContent = this.fps;
+        }
+
+        // Count objects in scene (recursively)
+        let objectCount = 0;
+        this.scene.traverse(() => {
+            objectCount++;
+        });
+
+        // Update object count display
+        const objectCountElement = document.getElementById('object-count');
+        if (objectCountElement) {
+            objectCountElement.textContent = objectCount;
+        }
+
+        // Count polygons (triangles)
+        const polygonCount = this.renderer.info.render.triangles;
+
+        // Update polygon count display
+        const polygonCountElement = document.getElementById('polygon-count');
+        if (polygonCountElement) {
+            polygonCountElement.textContent = polygonCount.toLocaleString();
+        }
     }
 
     // Public API
@@ -1110,9 +1247,11 @@ export class SolarSystemApp {
     focusOnBody(bodyKey) {
         const body = this.bodies.get(bodyKey);
         if (body) {
-            // Focus on container for planets, mesh for moons
-            const targetObject = body.container || body.mesh;
-            this.controls.target.copy(targetObject.position);
+            // Store selected body key
+            this.selectedBodyKey = bodyKey;
+
+            // Always point camera to Sun (origin)
+            this.controls.target.set(0, 0, 0);
 
             // Update info panel
             this.updateSelectedObjectInfo(bodyKey);
@@ -1186,16 +1325,21 @@ export class SolarSystemApp {
             document.getElementById('selected-distance').textContent = '-';
         }
 
-        // Rotation
-        if (data.rotation) {
-            const rotPeriod = Math.abs(data.rotation.period_days);
+        // Rotation (handle both nested and flat structures)
+        const rotationPeriod = data.rotation?.period_days ?? data.rotation_period_days;
+        const axialTilt = data.rotation?.axial_tilt ?? data.axial_tilt_deg;
+
+        if (rotationPeriod !== undefined) {
+            const rotPeriod = Math.abs(rotationPeriod);
             document.getElementById('selected-rotation-period').textContent =
-                this.formatPeriod(rotPeriod) + (data.rotation.period_days < 0 ? ' (retrograde)' : '');
-            document.getElementById('selected-axial-tilt').textContent = data.rotation.axial_tilt
-                ? `${data.rotation.axial_tilt.toFixed(2)}°`
-                : '-';
+                this.formatPeriod(rotPeriod) + (rotationPeriod < 0 ? ' (retrograde)' : '');
         } else {
             document.getElementById('selected-rotation-period').textContent = '-';
+        }
+
+        if (axialTilt !== undefined) {
+            document.getElementById('selected-axial-tilt').textContent = `${axialTilt.toFixed(2)}°`;
+        } else {
             document.getElementById('selected-axial-tilt').textContent = '-';
         }
 
@@ -1238,6 +1382,134 @@ export class SolarSystemApp {
         } else {
             const years = days / 365.25;
             return `${years.toFixed(2)} years`;
+        }
+    }
+
+    /**
+     * Show detailed planet information modal for currently selected body
+     */
+    showSelectedBodyDetails() {
+        if (this.selectedBodyKey) {
+            this.showPlanetDetailsModal(this.selectedBodyKey);
+        }
+    }
+
+    /**
+     * Show detailed planet information modal
+     */
+    showPlanetDetailsModal(bodyKey) {
+        const modal = document.getElementById('planet-details-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalContent = document.getElementById('modal-content');
+
+        if (!modal || !modalTitle || !modalContent) return;
+
+        const body = this.bodies.get(bodyKey);
+        if (!body) return;
+
+        const data = body.data;
+
+        // Set title
+        modalTitle.textContent = data.name_en || data.name || bodyKey;
+
+        // Build comprehensive content
+        let html = '<div style="display: grid; gap: 20px;">';
+
+        // Basic Information
+        html += '<div>';
+        html += '<h3 style="color: #00ff00; margin-top: 0; border-bottom: 1px solid rgba(0, 255, 0, 0.3); padding-bottom: 5px;">📋 Basic Information</h3>';
+        html += `<div><strong>Type:</strong> ${data.type || '-'}</div>`;
+        html += `<div><strong>Parent:</strong> ${data.parent || '-'}</div>`;
+        if (data.name_ru) html += `<div><strong>Russian Name:</strong> ${data.name_ru}</div>`;
+        html += '</div>';
+
+        // Physical Properties
+        html += '<div>';
+        html += '<h3 style="color: #00ff00; border-bottom: 1px solid rgba(0, 255, 0, 0.3); padding-bottom: 5px;">🌍 Physical Properties</h3>';
+        if (data.radius_km) html += `<div><strong>Radius:</strong> ${data.radius_km.toLocaleString()} km</div>`;
+        if (data.mass_kg) html += `<div><strong>Mass:</strong> ${this.formatMass(data.mass_kg)}</div>`;
+        if (data.density_g_cm3) html += `<div><strong>Density:</strong> ${data.density_g_cm3.toFixed(2)} g/cm³</div>`;
+        if (data.surface_gravity_m_s2) html += `<div><strong>Surface Gravity:</strong> ${data.surface_gravity_m_s2.toFixed(2)} m/s²</div>`;
+        if (data.escape_velocity_km_s) html += `<div><strong>Escape Velocity:</strong> ${data.escape_velocity_km_s.toFixed(2)} km/s</div>`;
+        html += '</div>';
+
+        // Orbital Elements
+        if (data.orbital) {
+            html += '<div>';
+            html += '<h3 style="color: #00ff00; border-bottom: 1px solid rgba(0, 255, 0, 0.3); padding-bottom: 5px;">🛸 Orbital Elements</h3>';
+            if (data.orbital.period_days) html += `<div><strong>Orbital Period:</strong> ${this.formatPeriod(data.orbital.period_days)}</div>`;
+            if (data.orbital.semi_major_axis_au) html += `<div><strong>Semi-Major Axis:</strong> ${data.orbital.semi_major_axis_au.toFixed(3)} AU</div>`;
+            if (data.orbital.semi_major_axis_km) html += `<div style="margin-left: 20px; color: #88ccff;">(${data.orbital.semi_major_axis_km.toLocaleString()} km)</div>`;
+            if (data.orbital.eccentricity !== undefined) html += `<div><strong>Eccentricity:</strong> ${data.orbital.eccentricity.toFixed(4)}</div>`;
+            if (data.orbital.inclination !== undefined) html += `<div><strong>Inclination:</strong> ${data.orbital.inclination.toFixed(2)}°</div>`;
+            if (data.orbital.longitude_ascending_node !== undefined) html += `<div><strong>Longitude of Asc. Node:</strong> ${data.orbital.longitude_ascending_node.toFixed(2)}°</div>`;
+            if (data.orbital.argument_perihelion !== undefined) html += `<div><strong>Argument of Perihelion:</strong> ${data.orbital.argument_perihelion.toFixed(2)}°</div>`;
+            if (data.orbital.mean_anomaly_epoch !== undefined) html += `<div><strong>Mean Anomaly (J2000):</strong> ${data.orbital.mean_anomaly_epoch.toFixed(2)}°</div>`;
+            html += '</div>';
+        }
+
+        // Rotation (handle both nested and flat structures)
+        html += '<div>';
+        html += '<h3 style="color: #00ff00; border-bottom: 1px solid rgba(0, 255, 0, 0.3); padding-bottom: 5px;">🔄 Rotation</h3>';
+
+        const rotationPeriod = data.rotation?.period_days ?? data.rotation_period_days;
+        const axialTilt = data.rotation?.axial_tilt ?? data.axial_tilt_deg;
+
+        if (rotationPeriod !== undefined) {
+            const rotationLabel = rotationPeriod < 0 ? `${this.formatPeriod(Math.abs(rotationPeriod))} (retrograde)` : this.formatPeriod(rotationPeriod);
+            html += `<div><strong>Rotation Period:</strong> ${rotationLabel}</div>`;
+        }
+        if (axialTilt !== undefined) {
+            html += `<div><strong>Axial Tilt:</strong> ${axialTilt.toFixed(2)}°</div>`;
+        }
+        html += '</div>';
+
+        // Temperature
+        if (data.temperature) {
+            html += '<div>';
+            html += '<h3 style="color: #00ff00; border-bottom: 1px solid rgba(0, 255, 0, 0.3); padding-bottom: 5px;">🌡️ Temperature</h3>';
+            if (data.temperature.min_c !== undefined) html += `<div><strong>Minimum:</strong> ${data.temperature.min_c}°C (${(data.temperature.min_c * 9/5 + 32).toFixed(0)}°F)</div>`;
+            if (data.temperature.max_c !== undefined) html += `<div><strong>Maximum:</strong> ${data.temperature.max_c}°C (${(data.temperature.max_c * 9/5 + 32).toFixed(0)}°F)</div>`;
+            if (data.temperature.mean_c !== undefined) html += `<div><strong>Mean:</strong> ${data.temperature.mean_c}°C (${(data.temperature.mean_c * 9/5 + 32).toFixed(0)}°F)</div>`;
+            if (data.temperature.terminator_c !== undefined) html += `<div><strong>Terminator:</strong> ${data.temperature.terminator_c}°C</div>`;
+            html += '</div>';
+        }
+
+        // Atmosphere (if exists)
+        if (data.atmosphere_composition) {
+            html += '<div>';
+            html += '<h3 style="color: #00ff00; border-bottom: 1px solid rgba(0, 255, 0, 0.3); padding-bottom: 5px;">💨 Atmosphere</h3>';
+            for (const [gas, percentage] of Object.entries(data.atmosphere_composition)) {
+                html += `<div><strong>${gas}:</strong> ${percentage}</div>`;
+            }
+            html += '</div>';
+        }
+
+        // Interesting Facts (if exist)
+        if (data.interesting_facts) {
+            html += '<div>';
+            html += '<h3 style="color: #00ff00; border-bottom: 1px solid rgba(0, 255, 0, 0.3); padding-bottom: 5px;">💡 Interesting Facts</h3>';
+            html += `<ul style="margin: 0; padding-left: 20px;">`;
+            for (const fact of data.interesting_facts) {
+                html += `<li style="margin-bottom: 8px;">${fact}</li>`;
+            }
+            html += '</ul>';
+            html += '</div>';
+        }
+
+        html += '</div>';
+
+        modalContent.innerHTML = html;
+        modal.style.display = 'block';
+    }
+
+    /**
+     * Hide planet details modal
+     */
+    hidePlanetDetailsModal() {
+        const modal = document.getElementById('planet-details-modal');
+        if (modal) {
+            modal.style.display = 'none';
         }
     }
 
@@ -1505,6 +1777,84 @@ export class SolarSystemApp {
     }
 
     /**
+     * Create terminator (day/night boundary) for a celestial body
+     */
+    createTerminator(key, radius, parentObject) {
+        // Terminator is a great circle perpendicular to the sun direction
+        // We'll create a circle in the XZ plane and rotate it to align with sun direction
+        const segments = 128;
+        const points = [];
+
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * Math.PI * 2;
+            points.push(new THREE.Vector3(
+                radius * Math.cos(angle),
+                radius * Math.sin(angle),
+                0
+            ));
+        }
+
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+            color: 0xffaa00, // Orange color for terminator
+            transparent: true,
+            opacity: 0.8,
+            linewidth: 2
+        });
+        const line = new THREE.Line(geometry, material);
+        line.name = 'Terminator';
+        line.visible = this.showTerminators;
+
+        parentObject.add(line);
+        this.terminators.set(key, line);
+    }
+
+    /**
+     * Update terminator orientations based on sun direction
+     */
+    updateTerminators() {
+        const sunPosition = new THREE.Vector3(0, 0, 0);
+
+        for (const [key, terminator] of this.terminators) {
+            const body = this.bodies.get(key);
+            if (!body) continue;
+
+            // Get world position of the body
+            const bodyPosition = new THREE.Vector3();
+            const targetObject = body.container || body.mesh;
+            targetObject.getWorldPosition(bodyPosition);
+
+            // Calculate sun direction (from body to sun)
+            const sunDirection = new THREE.Vector3().subVectors(sunPosition, bodyPosition).normalize();
+
+            // The terminator line should be perpendicular to sun direction
+            // We need to rotate the terminator circle to face the sun
+
+            // Calculate rotation to align circle's normal (Z-axis) with sun direction
+            const up = new THREE.Vector3(0, 1, 0);
+            const quaternion = new THREE.Quaternion();
+
+            // If sun direction is along Y axis, use X as up vector
+            if (Math.abs(sunDirection.y) > 0.99) {
+                up.set(1, 0, 0);
+            }
+
+            // Create a basis where Z points toward sun
+            const zAxis = sunDirection.clone();
+            const xAxis = new THREE.Vector3().crossVectors(up, zAxis).normalize();
+            const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis).normalize();
+
+            // Create rotation matrix
+            const matrix = new THREE.Matrix4();
+            matrix.makeBasis(xAxis, yAxis, zAxis);
+            quaternion.setFromRotationMatrix(matrix);
+
+            // Apply rotation
+            terminator.quaternion.copy(quaternion);
+        }
+    }
+
+    /**
      * Toggle grid visibility
      */
     toggleGrids(visible) {
@@ -1578,6 +1928,100 @@ export class SolarSystemApp {
             // Toggle visibility of existing trails
             for (const [key, trail] of this.trails) {
                 trail.line.visible = visible;
+            }
+        }
+    }
+
+    /**
+     * Toggle temperature visualization
+     */
+    toggleTemperature(visible) {
+        this.showTemperature = visible;
+
+        // Switch materials for all bodies that have temperature data
+        for (const [key, body] of this.bodies) {
+            if (body.temperatureMaterial && body.standardMaterial) {
+                const newMaterial = visible ? body.temperatureMaterial : body.standardMaterial;
+                body.mesh.material = newMaterial;
+            }
+        }
+    }
+
+    /**
+     * Toggle terminator visibility
+     */
+    toggleTerminators(visible) {
+        this.showTerminators = visible;
+
+        if (visible && this.terminators.size === 0) {
+            // Create terminators for all bodies (except sun)
+            for (const [key, body] of this.bodies) {
+                if (key !== 'SUN') {
+                    const mesh = body.mesh;
+                    const radius = mesh.geometry.parameters.radius;
+                    // Add terminator to CONTAINER (not mesh) so it doesn't rotate with planet
+                    const parentObject = body.container || body.mesh;
+                    this.createTerminator(key, radius * 1.01, parentObject);
+                }
+            }
+            // Update initial positions
+            this.updateTerminators();
+        } else {
+            // Toggle visibility of existing terminators
+            for (const [key, terminator] of this.terminators) {
+                terminator.visible = visible;
+            }
+        }
+    }
+
+    /**
+     * Toggle coordinate axes visibility for all bodies
+     */
+    toggleAxes(visible) {
+        this.showAxes = visible;
+
+        // Toggle axes for all bodies
+        for (const [key, body] of this.bodies) {
+            if (body.axes) {
+                body.axes.visible = visible;
+            }
+        }
+    }
+
+    /**
+     * Toggle sun rays visibility
+     */
+    toggleSunRays(visible) {
+        this.showSunRays = visible;
+        if (this.sunRays) {
+            this.sunRays.visible = visible;
+        }
+    }
+
+    /**
+     * Update sun direction in temperature shaders
+     */
+    updateTemperatureSunDirections() {
+        // Sun is at origin (0, 0, 0)
+        const sunPosition = new THREE.Vector3(0, 0, 0);
+
+        for (const [key, body] of this.bodies) {
+            if (body.temperatureMaterial && body.mesh) {
+                // Get world position of the body
+                const bodyPosition = new THREE.Vector3();
+                const targetObject = body.container || body.mesh;
+                targetObject.getWorldPosition(bodyPosition);
+
+                // Calculate sun direction in world space
+                const sunDirection = new THREE.Vector3().subVectors(sunPosition, bodyPosition).normalize();
+
+                // Transform to body's local space (account for rotation)
+                const localSunDirection = sunDirection.clone();
+                body.mesh.worldToLocal(localSunDirection.add(bodyPosition));
+                localSunDirection.sub(new THREE.Vector3()).normalize();
+
+                // Update shader uniform
+                body.temperatureMaterial.uniforms.sunDirection.value.copy(localSunDirection);
             }
         }
     }
