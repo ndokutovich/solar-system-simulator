@@ -595,20 +595,22 @@ export class SolarSystemApp {
         return orbitLine;
     }
 
-    /**
-     * Get color for a body from config
-     * @param {string} key - Body key (e.g., 'EARTH')
-     * @param {Object} bodyData - Body data from config
-     * @returns {number} Hex color value
-     */
     getBodyColor(key, bodyData) {
-        // Read color from config's rendering section
-        if (bodyData && bodyData.rendering && bodyData.rendering.color !== undefined) {
-            return bodyData.rendering.color;
-        }
+        // Define colors for known bodies
+        const colors = {
+            MERCURY: 0x888888,
+            VENUS: 0xffc649,
+            EARTH: 0x4444ff,
+            MARS: 0xff4444,
+            JUPITER: 0xcc9966,
+            SATURN: 0xffcc99,
+            URANUS: 0x66ffff,
+            NEPTUNE: 0x4444ff,
+            PLUTO: 0x886644,
+            MOON: 0xaaaaaa
+        };
 
-        // Fallback to gray
-        return 0x888888;
+        return colors[key] || 0x888888;
     }
 
     getScaledRadius(radiusKm, type, parentRadiusKm = null) {
@@ -809,7 +811,7 @@ export class SolarSystemApp {
                 groups.planet.forEach(({ key, data }) => {
                     const option = document.createElement('option');
                     option.value = key;
-                    const emoji = this.getBodyEmoji(key, data);
+                    const emoji = this.getBodyEmoji(key);
                     const parent = this.formatParentName(data.parent);
                     option.textContent = `${emoji} ${data.name_en || data.name} ${parent}`;
                     planetGroup.appendChild(option);
@@ -851,26 +853,20 @@ export class SolarSystemApp {
     /**
      * Get emoji icon for a celestial body
      */
-    /**
-     * Get emoji for a body from config
-     * @param {string} key - Body key (e.g., 'EARTH')
-     * @param {Object} bodyData - Body data from config (optional, will fetch if not provided)
-     * @returns {string} Emoji for the body
-     */
-    getBodyEmoji(key, bodyData = null) {
-        // If bodyData provided, use it directly
-        if (bodyData && bodyData.emoji) {
-            return bodyData.emoji;
-        }
-
-        // Otherwise, get from bodies map (if already created)
-        const body = this.bodies.get(key);
-        if (body && body.data && body.data.emoji) {
-            return body.data.emoji;
-        }
-
-        // Fallback to empty string
-        return '';
+    getBodyEmoji(key) {
+        const emojiMap = {
+            'MERCURY': '☿',
+            'VENUS': '♀',
+            'EARTH': '🌍',
+            'MARS': '♂',
+            'JUPITER': '♃',
+            'SATURN': '♄',
+            'URANUS': '♅',
+            'NEPTUNE': '♆',
+            'PLUTO': '♇',
+            'MOON': '🌙'
+        };
+        return emojiMap[key] || '';
     }
 
     /**
@@ -930,7 +926,7 @@ export class SolarSystemApp {
                     const div = document.createElement('div');
                     div.className = 'body-item';
                     div.dataset.body = key;
-                    const emoji = this.getBodyEmoji(key, data);
+                    const emoji = this.getBodyEmoji(key);
                     const parent = this.formatParentName(data.parent);
                     div.textContent = `${emoji} ${data.name_en || data.name} ${parent}`;
                     bodyListContainer.appendChild(div);
@@ -2190,13 +2186,22 @@ export class SolarSystemApp {
     /**
      * Create reflected light sources on major bodies
      * These simulate secondary illumination (e.g., Earthshine on Moon)
-     * Reads configuration from celestialBodies.js
      */
     createReflectedLights() {
-        // Iterate through all bodies and check if they have reflectedLight config
-        for (const [key, body] of this.bodies) {
-            if (body.data && body.data.reflectedLight && body.data.reflectedLight.enabled) {
-                const config = body.data.reflectedLight;
+        // Major bodies that reflect significant sunlight
+        const reflectiveBodies = [
+            { key: 'EARTH', intensity: 0.15, distance: 10, color: 0x4488ff }, // Blue Earth
+            { key: 'JUPITER', intensity: 0.12, distance: 50, color: 0xffddaa }, // Yellowish Jupiter
+            { key: 'SATURN', intensity: 0.10, distance: 40, color: 0xffffcc }, // Pale Saturn
+            { key: 'VENUS', intensity: 0.18, distance: 5, color: 0xffffee }, // Bright Venus (high albedo)
+            { key: 'MARS', intensity: 0.08, distance: 8, color: 0xff8844 }, // Reddish Mars
+            { key: 'URANUS', intensity: 0.09, distance: 30, color: 0x88ddff }, // Cyan Uranus
+            { key: 'NEPTUNE', intensity: 0.08, distance: 30, color: 0x4466ff }  // Blue Neptune
+        ];
+
+        for (const config of reflectiveBodies) {
+            const body = this.bodies.get(config.key);
+            if (body) {
                 const targetObject = body.container || body.mesh;
 
                 // Create point light to simulate reflected sunlight
@@ -2211,7 +2216,7 @@ export class SolarSystemApp {
                 targetObject.add(reflectedLight);
 
                 // Store reference
-                this.reflectedLights.set(key, reflectedLight);
+                this.reflectedLights.set(config.key, reflectedLight);
             }
         }
     }

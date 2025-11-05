@@ -34,7 +34,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Sun',
     type: 'star',
     parent: null,
-    emoji: '☀️',
 
     // Physical properties
     radius_km: 695700,
@@ -75,7 +74,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Mercury',
     type: 'planet',
     parent: 'sun',
-    emoji: '☿',
 
     // Physical properties
     radius_km: 2439.5,
@@ -128,7 +126,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Venus',
     type: 'planet',
     parent: 'sun',
-    emoji: '♀',
 
     radius_km: 6051.8,
     mass_kg: 4.8675e24,
@@ -161,14 +158,6 @@ export const CELESTIAL_BODIES = {
       albedo: 0.76,
       atmosphere_color: 0xFFE0B0,
       atmosphere_thickness_km: 100
-    },
-
-    // Reflected light (Venus has high albedo)
-    reflectedLight: {
-      enabled: true,
-      intensity: 0.18,
-      distance: 5,
-      color: 0xffffee
     }
   },
 
@@ -178,7 +167,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Earth',
     type: 'planet',
     parent: 'sun',
-    emoji: '🌍',
 
     radius_km: 6371,
     mass_kg: 5.97237e24,
@@ -209,14 +197,6 @@ export const CELESTIAL_BODIES = {
       color: 0x2233FF,
       albedo: 0.306,
       atmosphere_color: 0x7FC8F8
-    },
-
-    // Reflected light (Earthshine)
-    reflectedLight: {
-      enabled: true,
-      intensity: 0.15,
-      distance: 10,
-      color: 0x4488ff
     }
   },
 
@@ -226,7 +206,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Moon',
     type: 'moon',
     parent: 'earth',
-    emoji: '🌙',
 
     radius_km: 1737.4,
     mass_kg: 7.342e22,
@@ -271,7 +250,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Mars',
     type: 'planet',
     parent: 'sun',
-    emoji: '♂',
 
     radius_km: 3389.5,
     mass_kg: 6.4171e23,
@@ -302,14 +280,6 @@ export const CELESTIAL_BODIES = {
       color: 0xCD5C5C,
       albedo: 0.15,
       atmosphere_color: 0xFFDDCC
-    },
-
-    // Reflected light (Mars)
-    reflectedLight: {
-      enabled: true,
-      intensity: 0.08,
-      distance: 8,
-      color: 0xff8844
     }
   },
 
@@ -389,7 +359,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Jupiter',
     type: 'planet',
     parent: 'sun',
-    emoji: '♃',
 
     radius_km: 69911,
     mass_kg: 1.8982e27,
@@ -421,14 +390,6 @@ export const CELESTIAL_BODIES = {
       albedo: 0.503,
       bands: true,
       great_red_spot: true
-    },
-
-    // Reflected light (Jupiter)
-    reflectedLight: {
-      enabled: true,
-      intensity: 0.12,
-      distance: 50,
-      color: 0xffddaa
     }
   },
 
@@ -582,7 +543,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Saturn',
     type: 'planet',
     parent: 'sun',
-    emoji: '♄',
 
     radius_km: 58232,
     mass_kg: 5.6834e26,
@@ -619,14 +579,6 @@ export const CELESTIAL_BODIES = {
         color: 0xBBBB99,
         opacity: 0.7
       }
-    },
-
-    // Reflected light (Saturn)
-    reflectedLight: {
-      enabled: true,
-      intensity: 0.10,
-      distance: 40,
-      color: 0xffffcc
     }
   },
 
@@ -745,7 +697,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Uranus',
     type: 'planet',
     parent: 'sun',
-    emoji: '♅',
 
     radius_km: 25362,
     mass_kg: 8.6810e25,
@@ -783,14 +734,6 @@ export const CELESTIAL_BODIES = {
         color: 0x666666,
         opacity: 0.3
       }
-    },
-
-    // Reflected light (Uranus)
-    reflectedLight: {
-      enabled: true,
-      intensity: 0.09,
-      distance: 30,
-      color: 0x88ddff
     }
   },
 
@@ -871,7 +814,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Neptune',
     type: 'planet',
     parent: 'sun',
-    emoji: '♆',
 
     radius_km: 24622,
     mass_kg: 1.02413e26,
@@ -902,14 +844,6 @@ export const CELESTIAL_BODIES = {
       color: 0x4B70DD,
       albedo: 0.442,
       dark_spots: true
-    },
-
-    // Reflected light (Neptune)
-    reflectedLight: {
-      enabled: true,
-      intensity: 0.08,
-      distance: 30,
-      color: 0x4466ff
     }
   },
 
@@ -919,7 +853,6 @@ export const CELESTIAL_BODIES = {
     name_en: 'Pluto',
     type: 'dwarf_planet',
     parent: 'sun',
-    emoji: '♇',
 
     radius_km: 1188.3,
 

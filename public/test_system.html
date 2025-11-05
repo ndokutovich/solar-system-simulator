@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #0f0;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #f00;
+            background: rgba(0,0,0,0.9);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="info">
+        Loading Solar System...<br>
+        FPS: <span id="fps">0</span><br>
+        Bodies: <span id="bodies">0</span><br>
+        Time: <span id="time">0</span> days
+    </div>
+    <div id="error"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script type="module">
+        // Import our modules
+        import { CELESTIAL_BODIES } from './src/config/celestialBodies.js';
+        import { calculateBodyPosition } from './src/domain/services/OrbitalMechanics.js';
+        import { calculateBodyRotation } from './src/domain/services/RotationalMechanics.js';
+        import { PlanetaryRenderer } from './src/presentation/PlanetaryRenderer.js';
+
+        // Simple test application
+        class TestSolarSystem {
+            constructor() {
+                this.time = 0;
+                this.timeSpeed = 1;
+                this.bodies = new Map();
+
+                this.init();
+            }
+
+            init() {
+                try {
+                    // Scene setup
+                    this.scene = new THREE.Scene();
+                    this.scene.background = new THREE.Color(0x000000);
+
+                    // Camera
+                    this.camera = new THREE.PerspectiveCamera(
+                        45, window.innerWidth / window.innerHeight, 0.1, 1000
+                    );
+                    this.camera.position.set(30, 20, 30);
+                    this.camera.lookAt(0, 0, 0);
+
+                    // Renderer
+                    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    document.getElementById('container').appendChild(this.renderer.domElement);
+
+                    // Lights
+                    const ambientLight = new THREE.AmbientLight(0x404040);
+                    this.scene.add(ambientLight);
+
+                    const sunLight = new THREE.PointLight(0xffffff, 2);
+                    sunLight.position.set(0, 0, 0);
+                    this.scene.add(sunLight);
+
+                    // Controls
+                    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                    this.controls.enableDamping = true;
+                    this.controls.dampingFactor = 0.05;
+
+                    // Create planetary renderer
+                    this.planetRenderer = new PlanetaryRenderer(this.scene, 'visible');
+                    this.planetRenderer.createAllBodies();
+
+                    // Get bodies for updating
+                    this.bodies = this.planetRenderer.bodies;
+
+                    // Update body count
+                    document.getElementById('bodies').textContent = this.bodies.size;
+
+                    // Start animation
+                    this.animate();
+
+                    console.log('Solar System initialized successfully!');
+                    console.log(`Created ${this.bodies.size} celestial bodies`);
+
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    this.showError(error.message);
+                }
+            }
+
+            updateBodies(deltaTime) {
+                this.time += deltaTime * this.timeSpeed;
+
+                // Update each body
+                for (const [key, body] of this.bodies) {
+                    if (key === 'SUN') continue;
+
+                    const data = body.data;
+
+                    // Update position
+                    if (data.orbital) {
+                        try {
+                            const orbital = data.orbital;
+                            const position = calculateBodyPosition({
+                                semiMajorAxis: orbital.semi_major_axis_au ||
+                                              (orbital.semi_major_axis_km / 149597870.7),
+                                eccentricity: orbital.eccentricity || 0,
+                                inclination: (orbital.inclination || 0) * Math.PI / 180,
+                                longitudeOfAscendingNode: 0,
+                                argumentOfPerihelion: 0,
+                                orbitalPeriod: orbital.period_days || 365.25
+                            }, this.time);
+
+                            const scale = 10; // Scale for visibility
+                            body.mesh.position.set(
+                                position.x * scale,
+                                position.z * scale,
+                                -position.y * scale
+                            );
+                        } catch (err) {
+                            // Skip if error in calculation
+                        }
+                    }
+
+                    // Update rotation
+                    if (data.rotation) {
+                        try {
+                            const rotation = calculateBodyRotation(
+                                data.rotation,
+                                this.time,
+                                0,
+                                data.orbital?.period_days || 365.25
+                            );
+                            body.mesh.rotation.y = rotation.angle;
+                        } catch (err) {
+                            // Skip if error in calculation
+                        }
+                    }
+
+                    // Update Mercury's temperature shader
+                    // DISABLED: Mercury now uses standard material like other planets
+                    // if (key === 'MERCURY') {
+                    //     this.updateMercuryTemperature(body);
+                    // }
+                }
+            }
+
+            updateMercuryTemperature(mercury) {
+                if (!mercury.planet || !mercury.material || !mercury.material.uniforms) return;
+
+                mercury.planet.updateMatrixWorld();
+                const sunPos = new THREE.Vector3(0, 0, 0);
+                const mercuryPos = mercury.mesh.position.clone();
+                const toSun = sunPos.sub(mercuryPos).normalize();
+
+                // Transform to Mercury's local space
+                const mercuryMatrixInverse = new THREE.Matrix4()
+                    .copy(mercury.planet.matrixWorld)
+                    .invert();
+                const sunDirLocal = toSun.clone()
+                    .applyMatrix4(mercuryMatrixInverse)
+                    .normalize();
+
+                mercury.material.uniforms.sunDirection.value.copy(sunDirLocal);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+
+                // Update physics
+                this.updateBodies(0.1);
+
+                // Update controls
+                this.controls.update();
+
+                // Update time display
+                document.getElementById('time').textContent = this.time.toFixed(1);
+
+                // Render
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = 'Error: ' + message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        // FPS counter
+        let fps = 0;
+        let lastTime = performance.now();
+        function updateFPS() {
+            fps++;
+            const now = performance.now();
+            if (now - lastTime >= 1000) {
+                document.getElementById('fps').textContent = fps;
+                fps = 0;
+                lastTime = now;
+            }
+            requestAnimationFrame(updateFPS);
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Starting Solar System Test...');
+
+            // Check if modules loaded
+            console.log('CELESTIAL_BODIES loaded:', !!CELESTIAL_BODIES);
+            console.log('Number of bodies:', Object.keys(CELESTIAL_BODIES).length);
+
+            // Create application
+            const app = new TestSolarSystem();
+            window.app = app; // For debugging
+
+            // Start FPS counter
+            updateFPS();
+
+            // Add keyboard controls
+            document.addEventListener('keydown', (e) => {
+                switch(e.key) {
+                    case ' ':
+                        app.timeSpeed = app.timeSpeed > 0 ? 0 : 1;
+                        break;
+                    case 'ArrowUp':
+                        app.timeSpeed = Math.min(app.timeSpeed * 2, 100);
+                        break;
+                    case 'ArrowDown':
+                        app.timeSpeed = Math.max(app.timeSpeed / 2, 0.1);
+                        break;
+                    case 'r':
+                        app.time = 0;
+                        break;
+                }
+            });
+
+            // Info update
+            document.getElementById('info').innerHTML += '<br><br>Controls:<br>' +
+                'Space: Pause/Play<br>' +
+                'Arrow Up/Down: Speed<br>' +
+                'R: Reset<br>' +
+                'Mouse: Rotate view';
+        });
+    </script>
+</body>
+</html>
