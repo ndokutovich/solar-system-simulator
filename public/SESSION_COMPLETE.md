@@ -59,7 +59,7 @@ Implemented **5 major features** with full functionality:
 3. Planets orbit in reverse
 4. Click again to go forward
 
-**File Modified**: `index_full.html` (lines 662-700)
+**File Modified**: `index.html` (lines 662-700)
 **Code Added**: ~20 lines
 
 ---
@@ -101,7 +101,7 @@ if (this.followBody) {
 
 **Files Modified**:
 - `src/SolarSystemApp.js` (lines 605-721, 1082-1092)
-- `index_full.html` (lines 386-393)
+- `index.html` (lines 386-393)
 
 **Code Added**: ~120 lines
 
@@ -142,7 +142,7 @@ viewEarthMoon() {
 
 **Files Modified**:
 - `src/SolarSystemApp.js` (lines 1244-1307)
-- `index_full.html` (lines 394-405, 702-741)
+- `index.html` (lines 394-405, 702-741)
 
 **Code Added**: ~100 lines
 
@@ -208,7 +208,7 @@ formatPeriod(days) { /* Hours/Days/Years */ }
 
 **Files Modified**:
 - `src/SolarSystemApp.js` (lines 1117-1242)
-- `index_full.html` (lines 509-544)
+- `index.html` (lines 509-544)
 
 **Code Added**: ~140 lines
 
@@ -221,7 +221,7 @@ formatPeriod(days) { /* Hours/Days/Years */ }
 **Total Lines Added**: ~400 lines
 **Files Modified**: 2 main files
 - `src/SolarSystemApp.js`: ~260 lines added
-- `index_full.html`: ~140 lines added
+- `index.html`: ~140 lines added
 
 ### Features Breakdown
 
@@ -372,7 +372,7 @@ formatPeriod(days) { /* Hours/Days/Years */ }
 
 **Total**: ~260 lines added
 
-### `index_full.html`
+### `index.html`
 
 **CSS Changes**:
 - Added scrollbar styling (lines 38-61)

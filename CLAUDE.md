@@ -1,352 +1,474 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 ## Project Overview
 
-Interactive 3D visualization of Mercury's terminator zones built with Three.js, following clean code principles, SOLID architecture, and fail-fast validation.
+**Interactive 3D Solar System Simulator** with real astronomical data, built with Three.js. Features accurate orbital mechanics, temperature visualization, and a fully data-driven architecture ready for any star system.
 
-**Architecture**: Modular ES6 with clear separation of concerns
+**Architecture**: Config-driven, modular ES6
 **Framework**: Three.js r128
-**Style**: Clean Code, SOLID principles, Functional + OOP hybrid
+**Data Source**: NASA planetary data
+**Philosophy**: Single source of truth - all celestial body data in declarative config
 
-## Architecture
+## Current Application
 
-### Refactored Clean Code Structure
-
-The application follows a layered architecture with strict separation of concerns:
+The main application is located in `solar_system/`:
 
 ```
 mercury_terminator/
-├── index.html              # Entry point HTML
-├── index.css               # Styles
-├── src/
-│   ├── main.js            # Bootstrap entry point
-│   ├── Application.js     # Main orchestrator
-│   ├── config/
-│   │   └── constants.js   # ALL configuration and magic numbers
-│   ├── domain/            # Business logic layer (no dependencies on Three.js)
-│   │   ├── models/        # Immutable state models
-│   │   │   ├── MercuryModel.js    # Planet state management
-│   │   │   └── ObserverModel.js   # Surface observer state
-│   │   └── services/      # Pure business logic functions
-│   │       ├── PhysicsService.js       # Orbital mechanics
-│   │       └── TemperatureService.js   # Temperature calculations
-│   ├── presentation/      # Three.js rendering layer
-│   │   └── components/
-│   │       ├── SceneComponent.js       # Scene & renderer setup
-│   │       ├── CameraController.js     # Camera management
-│   │       ├── SunComponent.js         # Sun and lighting
-│   │       ├── MercuryComponent.js     # Mercury planet rendering
-│   │       └── UIController.js         # DOM interactions
-│   └── infrastructure/    # Cross-cutting concerns
-│       └── utils/
-│           ├── ValidationUtils.js  # Fail-fast validation
-│           └── ThreeUtils.js       # Three.js helper functions
-└── (legacy)/
-    ├── index.js (OLD)     # Deprecated monolithic code
-    └── mercury_terminator.html (V1) # Can be deleted
+├── solar_system/               # Main application
+│   ├── index.html             # Entry point
+│   ├── index.css              # Styles
+│   ├── src/
+│   │   ├── SolarSystemApp.js          # Main orchestrator
+│   │   ├── config/
+│   │   │   ├── celestialBodies.js     # ALL body data (planets, moons, stars)
+│   │   │   ├── constants.js           # Physics/rendering constants
+│   │   │   └── epoch.js               # J2000.0 epoch definition
+│   │   ├── domain/                    # Business logic (no Three.js)
+│   │   │   └── services/
+│   │   │       ├── OrbitalMechanics.js      # Keplerian orbits
+│   │   │       ├── RotationalMechanics.js   # Rotation, tidal locking
+│   │   │       ├── DateTimeService.js       # Date/time conversions
+│   │   │       └── CoordinateTransforms.js  # Coordinate systems
+│   │   └── infrastructure/
+│   │       └── utils/
+│   │           └── ValidationUtils.js
+│   ├── README.md
+│   ├── SESSION_COMPLETE.md           # Feature implementation summary
+│   ├── IMPLEMENTATION_SUMMARY.md     # Follow Body & Reverse Time docs
+│   └── PLANETARY_PARADES.md          # Reference dates for alignments
+├── CLAUDE.md                   # This file
+├── README.md                   # Project readme
+└── LICENSE
+
 ```
 
-### Key Architectural Principles
+## Running the Application
 
-1. **Single Responsibility**: Each module has exactly one reason to change
-2. **Dependency Inversion**: Domain layer has zero dependencies on Three.js
-3. **Fail Fast**: All inputs validated at boundaries with clear error messages
-4. **Immutability**: State models return new objects, never mutate
-5. **Pure Functions**: Business logic has no side effects
-6. **No Magic Numbers**: All constants centralized in config/constants.js
-
-### Layer Responsibilities
-
-**Configuration Layer** (`config/`)
-- Centralizes ALL magic numbers and configuration
-- Exports named constants grouped by concern
-- No business logic, only data
-
-**Domain Layer** (`domain/`)
-- **Models**: Immutable state containers with pure transformations
-- **Services**: Pure functions for physics, temperature calculations
-- **Zero dependencies** on Three.js or DOM
-- All functions are testable without rendering
-
-**Presentation Layer** (`presentation/`)
-- **Components**: Three.js object creation and management
-- **Controllers**: Camera, UI, and user interaction handling
-- Depends on domain layer, not vice versa
-- Each component manages one aspect of rendering
-
-**Infrastructure Layer** (`infrastructure/`)
-- **Validation**: Fail-fast input validation with clear errors
-- **Utils**: Reusable helper functions
-- No business logic
-
-## Development Commands
-
-### Running the Application
 ```bash
-# Serve with any HTTP server (required for ES6 modules)
+# Serve with any HTTP server (ES6 modules required)
 python -m http.server 8000
 # or
 npx http-server
 
-# Then open: http://localhost:8000
+# Then open: http://localhost:8000/solar_system/index.html
 ```
 
-### Architecture Validation
-Check these principles are maintained:
-```bash
-# No imports of Three.js in domain/ layer
-grep -r "THREE" src/domain/  # Should return nothing
+Or use the provided `run.bat` script.
 
-# No magic numbers outside config/
-grep -r "[0-9]\{2,\}" src/domain/ src/presentation/ # Investigate any findings
+## Architecture Principles
 
-# All functions in services/ are pure
-# They should only import from domain/models, config/, or utils/
+### 1. **Config-Driven Design**
+
+**ALL** celestial body data lives in `src/config/celestialBodies.js`:
+
+```javascript
+export const CELESTIAL_BODIES = {
+  EARTH: {
+    emoji: '🌍',
+    type: 'planet',
+    parent: 'sun',
+
+    // Physical properties
+    radius_km: 6371,
+    mass_kg: 5.97237e24,
+
+    // Orbital elements
+    orbital: {
+      semi_major_axis_au: 1.000001018,
+      eccentricity: 0.0167086,
+      inclination: 0.00005,
+      period_days: 365.256363004
+    },
+
+    // Rotation
+    rotation: {
+      period_days: 0.99726968,
+      axial_tilt: 23.4392811
+    },
+
+    // Temperature
+    temperature: {
+      min_c: -89,
+      max_c: 58
+    },
+
+    // Rendering
+    rendering: {
+      color: 0x2233FF,
+      albedo: 0.306
+    },
+
+    // Reflected light (Earthshine)
+    reflectedLight: {
+      enabled: true,
+      intensity: 0.15,
+      distance: 10,
+      color: 0x4488ff
+    },
+
+    // Camera preset for this body
+    cameraPreset: {
+      enabled: true,
+      name: 'Earth-Moon',
+      cameraOffset: { x: 5, y: 3, z: 5 },
+      follow: true
+    }
+  }
+};
+
+// System-wide camera presets
+export const SYSTEM_CAMERA_PRESETS = [
+  {
+    id: 'full-system',
+    name: 'Full System',
+    cameraPosition: { x: 0, y: 500, z: 500 },
+    targetPosition: { x: 0, y: 0, z: 0 }
+  }
+];
 ```
 
-## Code Quality Standards
+**Why this matters:**
+- Add a planet → it appears in UI automatically
+- Remove a planet → it disappears everywhere
+- Change planet color → updates instantly
+- **Swap star systems** → just replace the config file!
 
-### Function Size
-- **Maximum 20 lines** per function
-- If longer, extract helper functions
-- Exception: Application.js setup methods (documented)
+### 2. **No Hardcoded Planet References**
 
-### File Size
-- **Maximum 200 lines** per file
-- All current files comply except Application.js (400 lines, orchestrator exception)
+The app NEVER hardcodes planet names. Instead:
 
-### Validation
-- **All public functions** validate inputs
-- **Fail fast** - throw immediately on invalid input
-- **Clear errors** - include actual value in error message
+```javascript
+// ✅ GOOD - Data-driven
+for (const [key, data] of Object.entries(CELESTIAL_BODIES)) {
+  if (data.type === 'planet') {
+    createPlanet(key, data);
+  }
+}
 
-### State Management
-- **Never mutate** - always return new state objects
-- Use spread operator: `return { ...state, newField: value }`
-- Models in `domain/models/` enforce this pattern
+// ❌ BAD - Hardcoded
+createPlanet('EARTH');
+createPlanet('MARS');
+```
 
-### Naming Conventions
-- **Functions**: verbNoun (calculateTemperature, updateRotation)
-- **Classes**: PascalCase (MercuryComponent, PhysicsService)
-- **Constants**: SCREAMING_SNAKE_CASE (MERCURY_RADIUS)
-- **Files**: Match export name (PhysicsService.js exports PhysicsService)
+This makes the simulator work with **any star system** (Betelgeuse, Alpha Centauri, etc.)
+
+### 3. **Domain Layer Independence**
+
+Services in `domain/services/` are **pure functions** with **zero Three.js dependencies**:
+
+```javascript
+// domain/services/OrbitalMechanics.js
+export function calculateBodyPosition(semiMajorAxis, eccentricity, meanAnomaly) {
+  // Pure orbital mechanics - no rendering code
+  // Testable without Three.js
+  return { x, y, z };
+}
+```
+
+### 4. **localStorage Persistence**
+
+All user settings persist across page refreshes:
+- Scale sliders (Sun, Planet, Moon, Moon Orbit)
+- Camera follow state
+- Visual toggles
+
+**Implementation:** Each slider saves to `localStorage` on change and loads on startup.
+
+## Key Features
+
+### Time Control
+- ✅ Play/Pause
+- ✅ **Reverse time** (run simulation backward)
+- ✅ Speed control (0-100x)
+- ✅ Jump to any date/time
+- ✅ **Starts at TODAY** by default
+- ✅ Quick date presets (planetary parades)
+
+### Camera System
+- ✅ **Follow any body** (camera tracks planet/moon)
+- ✅ **6 camera presets** (loaded from config)
+  - Full System, Inner Planets, Outer Planets
+  - Earth-Moon, Jupiter System, Saturn System
+- ✅ **Preserve Zoom** mode (point at body vs move with body)
+- ✅ Keyboard shortcuts (1-9 for planets)
+
+### Visualization
+- ✅ Orbits (color-coded by type)
+- ✅ Labels (dynamic from config)
+- ✅ Trails (path history)
+- ✅ **Lat/Long grids** (rotate with planets)
+- ✅ **Temperature maps** (real surface temps)
+- ✅ **Day/night terminators**
+- ✅ **Coordinate axes** (on all bodies)
+- ✅ **Sun rays** (temperature gradient colors)
+- ✅ **Reflected light** (Earthshine, etc.)
+
+### Scale Modes
+- ✅ **Realistic Scale** (true proportions)
+- ✅ **Visible Scale** (logarithmic for visibility)
+- ✅ Individual scale sliders (persist in localStorage)
+
+### Information Display
+- ✅ Selected object info panel (live stats)
+- ✅ Detailed modal (all body properties)
+- ✅ Real-time date display
+- ✅ FPS counter
+
+### Bodies Included
+- ✅ 1 star (Sun)
+- ✅ 9 planets (Mercury → Pluto)
+- ✅ 11 major moons
+- ✅ All dynamically loaded from config
 
 ## Common Tasks
 
-### Adding a New Feature
+### Adding a New Planet
 
-1. **Start with Domain Logic**
-   ```javascript
-   // src/domain/services/NewFeatureService.js
-   export function calculateSomething(input) {
-     validateInput(input);  // Fail fast
-     return pureCalculation(input);  // No side effects
-   }
-   ```
-
-2. **Add Constants** (if needed)
-   ```javascript
-   // src/config/constants.js
-   export const NEW_FEATURE_CONFIG = {
-     THRESHOLD: 42,
-     COLOR: 0xff00ff
-   };
-   ```
-
-3. **Create Presentation Component** (if needed)
-   ```javascript
-   // src/presentation/components/NewComponent.js
-   import { calculateSomething } from '../../domain/services/NewFeatureService.js';
-
-   export class NewComponent {
-     create() {
-       const result = calculateSomething(input);
-       // Create Three.js objects using result
-     }
-   }
-   ```
-
-4. **Integrate in Application.js**
-   ```javascript
-   // src/Application.js
-   import { NewComponent } from './presentation/components/NewComponent.js';
-
-   initializeComponents() {
-     this.newComponent = new NewComponent();
-     const refs = this.newComponent.create();
-     this.scene.add(refs.object);
-   }
-   ```
-
-### Modifying Physics/Temperature
-
-1. **Edit service function** in `domain/services/`
-2. **Business logic only** - no Three.js code
-3. **Add validation** for new parameters
-4. **Return pure values** - no side effects
-5. **Update Application.js** to use new calculations
-
-### Adding UI Controls
-
-1. **Add DOM ID** to `config/constants.js` in `DOM_IDS`
-2. **Add HTML element** to `index.html`
-3. **Register handler** in `Application.js`:
-   ```javascript
-   setupNewControl() {
-     this.uiController.on(DOM_IDS.NEW_BUTTON, 'click', () => {
-       // Update state immutably
-       this.someState = updateSomeState(this.someState, newValue);
-     });
-   }
-   ```
-
-### Debugging
-
-The application exposes itself to window:
+1. **Add to config** (`src/config/celestialBodies.js`):
 ```javascript
-// In browser console
-window.mercuryApp                    // Access application instance
-window.mercuryApp.mercuryState       // Inspect current state
-window.mercuryApp.cameraController   // Access components
+export const CELESTIAL_BODIES = {
+  // ... existing bodies
+
+  NEW_PLANET: {
+    emoji: '🪐',
+    type: 'planet',
+    parent: 'sun',
+    radius_km: 50000,
+    mass_kg: 1.0e26,
+
+    orbital: {
+      semi_major_axis_au: 5.2,
+      eccentricity: 0.048,
+      inclination: 1.3,
+      mean_anomaly_epoch: 34.4,
+      period_days: 4332
+    },
+
+    rotation: {
+      period_days: 0.41,
+      axial_tilt: 3.1
+    },
+
+    temperature: {
+      min_c: -150,
+      max_c: -100
+    },
+
+    rendering: {
+      color: 0xFFCC99,
+      albedo: 0.5
+    }
+  }
+};
 ```
 
-## Error Handling Strategy
+2. **Refresh the page** - Planet appears automatically in:
+   - ✅ 3D scene
+   - ✅ Body list
+   - ✅ Follow dropdown
+   - ✅ Keyboard shortcuts (if planet position < 10)
 
-### Fail Fast at Boundaries
+### Adding a Camera Preset
+
+**For a specific body:**
 ```javascript
-// ✅ GOOD - Validate immediately
-export function calculateTemperature(longitude, latitude) {
-  validateLongitude(longitude);  // Throws if invalid
-  validateLatitude(latitude);    // Throws if invalid
-  return calculation();
-}
-
-// ❌ BAD - Silent failure
-export function calculateTemperature(longitude, latitude) {
-  if (!longitude) return 0;  // Wrong! Should throw
-  return calculation();
+SATURN: {
+  // ... other properties
+  cameraPreset: {
+    enabled: true,
+    name: 'Saturn Rings',
+    description: 'Close-up of Saturn\'s rings',
+    cameraOffset: { x: 25, y: 15, z: 25 },
+    follow: true
+  }
 }
 ```
 
-### Clear Error Messages
+**For the whole system:**
 ```javascript
-// ✅ GOOD - Actionable error
-throw new Error(`Invalid latitude: ${lat} (must be -90 to 90)`);
-
-// ❌ BAD - Vague error
-throw new Error('Invalid input');
+export const SYSTEM_CAMERA_PRESETS = [
+  {
+    id: 'kuiper-belt',
+    name: 'Kuiper Belt',
+    description: 'View outer solar system',
+    cameraPosition: { x: 0, y: 800, z: 800 },
+    targetPosition: { x: 0, y: 0, z: 0 },
+    follow: null
+  }
+];
 ```
 
-### Validation Layers
-1. **Entry points** (UI events, mouse clicks) - validate user input
-2. **Service functions** - validate parameters
-3. **Model updates** - validate state transitions
+### Changing Default Settings
+
+Edit `src/SolarSystemApp.js` constructor:
+
+```javascript
+// Visibility flags
+this.showOrbits = true;       // Orbits ON by default
+this.showGrids = true;         // Grids ON by default
+this.scaleMode = 'realistic';  // Realistic scale by default
+
+// Initial time
+this.time = getCurrentSimulationTime(); // Start at TODAY
+```
+
+And corresponding HTML checkboxes in `index.html`:
+```html
+<input type="checkbox" id="show-grids" checked>
+```
+
+### Modifying Orbital Mechanics
+
+Edit `src/domain/services/OrbitalMechanics.js`:
+
+1. Pure functions only (no Three.js)
+2. Add validation for inputs
+3. Return plain objects/numbers
+4. SolarSystemApp.js will use the results
+
+### Adding Reflected Light to a Body
+
+In `celestialBodies.js`:
+```javascript
+VENUS: {
+  // ... other properties
+  reflectedLight: {
+    enabled: true,
+    intensity: 0.18,      // Brightness
+    distance: 5,          // Range in AU
+    color: 0xffffee       // Light color
+  }
+}
+```
+
+Light source is created automatically when feature is enabled.
+
+## File Organization
+
+### Config Files (`src/config/`)
+- **celestialBodies.js** - ALL body data (★ most important)
+- **constants.js** - Physics constants, rendering settings
+- **epoch.js** - J2000.0 epoch definition
+
+### Domain Services (`src/domain/services/`)
+- **OrbitalMechanics.js** - Keplerian orbit calculations
+- **RotationalMechanics.js** - Rotation, tidal locking, 3:2 resonance
+- **DateTimeService.js** - Date ↔ simulation time conversions
+- **CoordinateTransforms.js** - Coordinate system transforms
+
+### Main Application
+- **SolarSystemApp.js** - Orchestrator (creates bodies, handles UI, animation loop)
+- **index.html** - UI, event handlers, initialization
+
+## Debugging
+
+Access the app in browser console:
+```javascript
+window.app                    // Main application instance
+window.app.bodies             // Map of all celestial bodies
+window.app.time               // Current simulation time
+window.app.scaleMultipliers   // Current scale settings
+window.app.followBody         // Currently followed body key
+```
+
+## Performance Notes
+
+- **Animation**: 60 FPS target
+- **Physics**: Calculated every frame (lightweight math)
+- **Bodies**: ~20 bodies (1 sun + 9 planets + 11 moons)
+- **Textures**: Generated once on load
+- **Grids**: Created/destroyed on toggle
+- **Trails**: Limited to recent positions
+
+**Optimization**: Disable features you don't need (Grids, Temperature, Terminators, etc.)
 
 ## Testing Strategy
 
-While no test framework is currently integrated, the architecture enables testing:
+Run test pages in `solar_system/`:
+- `test_*.html` - Various unit tests
+- `test_*.js` - Test scripts
 
-### Unit Testing Domain Layer
-```javascript
-// Domain functions are pure - easy to test
-import { calculateTemperature } from './domain/services/TemperatureService.js';
-
-// No mocking needed!
-const temp = calculateTemperature(0, 0);  // Subsolar point
-assert(temp === 427);
+Example:
+```bash
+# Open in browser
+http://localhost:8000/solar_system/test_moon_scales.js
 ```
 
-### Testing State Models
-```javascript
-import { updateRotation } from './domain/models/MercuryModel.js';
+## Documentation
 
-const state = createMercuryState();
-const newState = updateRotation(state, 10);
+Essential docs in `solar_system/`:
 
-assert(newState.rotation === 10);
-assert(state.rotation === 0);  // Immutability check
-```
-
-## Performance Considerations
-
-### Texture Updates
-- Temperature texture is 2048x1024 (2M pixels)
-- Only regenerate when absolutely necessary
-- Currently: generated once on load
-
-### Animation Loop
-- Runs at 60 FPS
-- Physics updates are lightweight (pure math)
-- Three.js rendering is the bottleneck
-
-### State Updates
-- Immutable updates create new objects
-- JavaScript GC handles old objects
-- No observable performance impact
+- **SESSION_COMPLETE.md** - Comprehensive feature summary (5 major features)
+- **IMPLEMENTATION_SUMMARY.md** - Follow Body & Reverse Time implementation details
+- **PLANETARY_PARADES.md** - Preset dates for planetary alignments
+- **README.md** - Solar system specific readme
 
 ## Known Limitations
 
-1. **OrbitControls**: Using Three.js built-in, not abstracted
-2. **No route visualization**: Polar/terminator routes not yet implemented in refactored code
-3. **No retrograde sun path**: Surface view sun path calculation is stubbed
-4. **Temperature texture**: Generated per-pixel in JS (could use shader)
+1. **No asteroids/comets** - Only major planets and moons
+2. **No spacecraft** - Could be added to config
+3. **Simplified physics** - Keplerian orbits (no perturbations)
+4. **No rings** - Saturn rings not visualized (yet)
+5. **Single star** - Currently designed for one star system
 
-## Migration Notes
+## Future Possibilities
 
-### From Legacy index.js
+- 🌌 **Multiple star systems** (Betelgeuse, Alpha Centauri)
+- 🛸 **Spacecraft trajectories** (Voyager, New Horizons)
+- ☄️ **Asteroids and comets**
+- 🪐 **Saturn's rings** (particle system)
+- 🔭 **Exoplanet systems**
+- 🎮 **VR mode**
+- 📱 **Touch controls**
+- 💾 **Save/load simulation states**
+- 🌈 **Custom themes**
 
-The old monolithic `index.js` (1000+ lines) has been refactored into:
-- 1 orchestrator (Application.js)
-- 5 presentation components
-- 2 domain models
-- 2 domain services
-- 2 utility modules
-- 1 config module
+## Code Quality Standards
 
-**Breaking Changes:**
-- None - HTML and CSS remain unchanged
-- Same DOM IDs, same UI behavior
-- Three.js r128 compatible
+### Naming Conventions
+- **Functions**: `verbNoun` (calculatePosition, updateRotation)
+- **Classes**: `PascalCase` (SolarSystemApp)
+- **Constants**: `SCREAMING_SNAKE_CASE` (CELESTIAL_BODIES)
+- **Config keys**: `UPPERCASE` (EARTH, JUPITER)
 
-**Legacy File Status:**
-- `index.js` - Can be deleted after verification
-- `mercury_terminator.html` (V1) - Can be deleted
+### Error Handling
+- **Fail fast** - validate at boundaries
+- **Clear messages** - include actual values
+- **No silent failures** - always throw on invalid input
 
-### Verification Checklist
-
-After refactoring, verify:
-- [ ] Application loads without errors
-- [ ] Mercury rotates with 3:2 resonance
-- [ ] Temperature map displays correctly
-- [ ] All camera views work (orbit, equator, pole, surface)
-- [ ] Time controls (speed, pause, reset) function
-- [ ] Surface view with WASD navigation works
-- [ ] Mouse hover shows temperature/coordinates
-- [ ] All checkboxes toggle visibility
-- [ ] Eccentricity slider updates orbit
-
-## Future Improvements
-
-1. **Add TypeScript** - Gradual migration with JSDoc types first
-2. **Extract OrbitControls** - Wrap in CameraController abstraction
-3. **Implement Routes** - Finish route visualization (polar, comfort, terminator)
-4. **Shader Temperature** - Move pixel generation to GPU
-5. **Add Tests** - Jest or Vitest for domain layer
-6. **State Management** - Consider Redux/Zustand if complexity grows
+### State Management
+- **Immutable updates** where possible
+- **localStorage** for user preferences
+- **No global variables** (except `window.app` for debugging)
 
 ## Support
 
-For questions about the refactored architecture:
-1. Check this file first
-2. Review `src/Application.js` for integration examples
-3. Examine domain layer for business logic
-4. Check config/constants.js for all magic numbers
+For questions:
+1. Check `solar_system/SESSION_COMPLETE.md` for feature documentation
+2. Review `src/config/celestialBodies.js` for data structure
+3. Check `src/SolarSystemApp.js` for application logic
+4. See `src/domain/services/` for physics calculations
 
-The refactored code prioritizes:
-- **Readability** over cleverness
-- **Explicit** over implicit
-- **Pure functions** over stateful classes (where appropriate)
-- **Fail fast** over silent failures
-- **Immutability** over mutation
+## Star System Portability
+
+To use with a different star system:
+
+1. **Create new config** (e.g., `betelgeuseBodies.js`)
+2. **Define the star**:
+   ```javascript
+   BETELGEUSE: {
+     emoji: '🔴',
+     type: 'star',
+     name_en: 'Betelgeuse',
+     radius_km: 887000000,  // Red supergiant
+     rendering: { color: 0xff0000 }
+   }
+   ```
+3. **Add planets** with orbital elements
+4. **Update imports** in `SolarSystemApp.js`
+5. **Done!** Everything else works automatically
+
+The architecture is **100% ready** for any star system! 🌟

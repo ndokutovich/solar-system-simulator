@@ -10,6 +10,7 @@ import { RENDERING, PHYSICS, UI } from './config/constants.js';
 import { calculateBodyPosition, calculateOrbitalPhase, calculateDistanceFromSun, calculateOrbitalPosition } from './domain/services/OrbitalMechanics.js';
 import { calculateBodyRotation, calculateSubSolarPoint } from './domain/services/RotationalMechanics.js';
 import { getSunDirectionInBodyFrame } from './domain/services/CoordinateTransforms.js';
+import { getCurrentSimulationTime } from './domain/services/DateTimeService.js';
 import { validateDOMElement, validateWebGLSupport } from './infrastructure/utils/ValidationUtils.js';
 
 export class SolarSystemApp {
@@ -18,10 +19,10 @@ export class SolarSystemApp {
         validateWebGLSupport();
 
         // Core state
-        this.time = 0;
+        this.time = getCurrentSimulationTime(); // Start at today's date/time
         this.timeSpeed = 1;
         this.isPaused = false;
-        this.scaleMode = 'visible'; // 'realistic' or 'visible'
+        this.scaleMode = 'realistic'; // 'realistic' or 'visible' - Default to realistic
         this.followBody = null; // Body key to follow with camera
         this.preserveZoom = true; // When following, preserve camera distance
         this.followOffset = null; // Camera offset when following (relative to body)
@@ -31,13 +32,13 @@ export class SolarSystemApp {
             realistic: {
                 sun: 1.0,
                 planet: 1.0,
-                moon: 10.0,  // Default to 10x for better moon visibility
+                moon: 1.0,  // Default to 1.0 (realistic scale)
                 moonOrbit: 1.0
             },
             visible: {
                 sun: 1.0,
                 planet: 1.0,
-                moon: 10.0,  // Default to 10x for better moon visibility
+                moon: 1.0,  // Default to 1.0 (same as planets)
                 moonOrbit: 1.0
             }
         };
@@ -55,7 +56,7 @@ export class SolarSystemApp {
         this.showLabels = false;
         this.showTrails = false;
         this.showSunGlow = true;
-        this.showGrids = false;
+        this.showGrids = true; // Default ON
         this.showTemperature = false;
         this.showTerminators = false;
         this.showAxes = false;
@@ -90,6 +91,7 @@ export class SolarSystemApp {
         this.initBodies();
         this.initControls();
         this.initUI();
+        this.updateDateDisplay(); // Show current date immediately
         this.animate();
     }
 
@@ -595,22 +597,20 @@ export class SolarSystemApp {
         return orbitLine;
     }
 
+    /**
+     * Get color for a body from config
+     * @param {string} key - Body key (e.g., 'EARTH')
+     * @param {Object} bodyData - Body data from config
+     * @returns {number} Hex color value
+     */
     getBodyColor(key, bodyData) {
-        // Define colors for known bodies
-        const colors = {
-            MERCURY: 0x888888,
-            VENUS: 0xffc649,
-            EARTH: 0x4444ff,
-            MARS: 0xff4444,
-            JUPITER: 0xcc9966,
-            SATURN: 0xffcc99,
-            URANUS: 0x66ffff,
-            NEPTUNE: 0x4444ff,
-            PLUTO: 0x886644,
-            MOON: 0xaaaaaa
-        };
+        // Read color from config's rendering section
+        if (bodyData && bodyData.rendering && bodyData.rendering.color !== undefined) {
+            return bodyData.rendering.color;
+        }
 
-        return colors[key] || 0x888888;
+        // Fallback to gray
+        return 0x888888;
     }
 
     getScaledRadius(radiusKm, type, parentRadiusKm = null) {
@@ -811,7 +811,7 @@ export class SolarSystemApp {
                 groups.planet.forEach(({ key, data }) => {
                     const option = document.createElement('option');
                     option.value = key;
-                    const emoji = this.getBodyEmoji(key);
+                    const emoji = this.getBodyEmoji(key, data);
                     const parent = this.formatParentName(data.parent);
                     option.textContent = `${emoji} ${data.name_en || data.name} ${parent}`;
                     planetGroup.appendChild(option);
@@ -853,20 +853,26 @@ export class SolarSystemApp {
     /**
      * Get emoji icon for a celestial body
      */
-    getBodyEmoji(key) {
-        const emojiMap = {
-            'MERCURY': '☿',
-            'VENUS': '♀',
-            'EARTH': '🌍',
-            'MARS': '♂',
-            'JUPITER': '♃',
-            'SATURN': '♄',
-            'URANUS': '♅',
-            'NEPTUNE': '♆',
-            'PLUTO': '♇',
-            'MOON': '🌙'
-        };
-        return emojiMap[key] || '';
+    /**
+     * Get emoji for a body from config
+     * @param {string} key - Body key (e.g., 'EARTH')
+     * @param {Object} bodyData - Body data from config (optional, will fetch if not provided)
+     * @returns {string} Emoji for the body
+     */
+    getBodyEmoji(key, bodyData = null) {
+        // If bodyData provided, use it directly
+        if (bodyData && bodyData.emoji) {
+            return bodyData.emoji;
+        }
+
+        // Otherwise, get from bodies map (if already created)
+        const body = this.bodies.get(key);
+        if (body && body.data && body.data.emoji) {
+            return body.data.emoji;
+        }
+
+        // Fallback to empty string
+        return '';
     }
 
     /**
@@ -926,7 +932,7 @@ export class SolarSystemApp {
                     const div = document.createElement('div');
                     div.className = 'body-item';
                     div.dataset.body = key;
-                    const emoji = this.getBodyEmoji(key);
+                    const emoji = this.getBodyEmoji(key, data);
                     const parent = this.formatParentName(data.parent);
                     div.textContent = `${emoji} ${data.name_en || data.name} ${parent}`;
                     bodyListContainer.appendChild(div);
@@ -1676,78 +1682,92 @@ export class SolarSystemApp {
     }
 
     /**
-     * Camera View Presets
+     * Camera View Presets - Now dynamically loaded from config
+     */
+
+    /**
+     * Apply a system-wide camera preset (not tied to a specific body)
+     * @param {Object} preset - Preset from SYSTEM_CAMERA_PRESETS
+     */
+    applySystemCameraPreset(preset) {
+        this.camera.position.set(
+            preset.cameraPosition.x,
+            preset.cameraPosition.y,
+            preset.cameraPosition.z
+        );
+        this.controls.target.set(
+            preset.targetPosition.x,
+            preset.targetPosition.y,
+            preset.targetPosition.z
+        );
+        this.followBody = preset.follow; // Usually null for system presets
+    }
+
+    /**
+     * Apply a body-specific camera preset
+     * @param {string} bodyKey - Body key (e.g., 'EARTH')
+     */
+    applyBodyCameraPreset(bodyKey) {
+        const body = this.bodies.get(bodyKey);
+        if (body && body.data && body.data.cameraPreset && body.data.cameraPreset.enabled) {
+            const preset = body.data.cameraPreset;
+            const bodyPos = (body.container || body.mesh).position;
+
+            // Set camera position relative to body
+            this.camera.position.set(
+                bodyPos.x + preset.cameraOffset.x,
+                bodyPos.y + preset.cameraOffset.y,
+                bodyPos.z + preset.cameraOffset.z
+            );
+
+            // Point at body
+            this.controls.target.copy(bodyPos);
+
+            // Enable follow mode if configured
+            if (preset.follow) {
+                this.followBody = bodyKey;
+                // Calculate offset for follow mode
+                this.followOffset = this.camera.position.clone().sub(bodyPos);
+            } else {
+                this.followBody = null;
+            }
+        }
+    }
+
+    /**
+     * Legacy methods for backwards compatibility (now use config)
      */
     viewFullSystem() {
-        // View entire solar system from above
-        this.camera.position.set(0, 500, 500);
-        this.controls.target.set(0, 0, 0);
-        this.followBody = null; // Stop following any body
+        import('./config/celestialBodies.js').then(({ SYSTEM_CAMERA_PRESETS }) => {
+            const preset = SYSTEM_CAMERA_PRESETS.find(p => p.id === 'full-system');
+            if (preset) this.applySystemCameraPreset(preset);
+        });
     }
 
     viewInnerPlanets() {
-        // Focus on Mercury, Venus, Earth, Mars
-        this.camera.position.set(0, 30, 30);
-        this.controls.target.set(0, 0, 0);
-        this.followBody = null;
+        import('./config/celestialBodies.js').then(({ SYSTEM_CAMERA_PRESETS }) => {
+            const preset = SYSTEM_CAMERA_PRESETS.find(p => p.id === 'inner-planets');
+            if (preset) this.applySystemCameraPreset(preset);
+        });
     }
 
     viewOuterPlanets() {
-        // Focus on Jupiter, Saturn, Uranus, Neptune
-        this.camera.position.set(0, 400, 400);
-        this.controls.target.set(0, 0, 0);
-        this.followBody = null;
+        import('./config/celestialBodies.js').then(({ SYSTEM_CAMERA_PRESETS }) => {
+            const preset = SYSTEM_CAMERA_PRESETS.find(p => p.id === 'outer-planets');
+            if (preset) this.applySystemCameraPreset(preset);
+        });
     }
 
     viewEarthMoon() {
-        // Close-up of Earth-Moon system
-        const earth = this.bodies.get('EARTH');
-        if (earth) {
-            const earthPos = (earth.container || earth.mesh).position;
-            this.camera.position.set(
-                earthPos.x + 5,
-                earthPos.y + 3,
-                earthPos.z + 5
-            );
-            this.controls.target.copy(earthPos);
-            this.followBody = 'EARTH'; // Follow Earth
-            // Calculate offset for follow mode
-            this.followOffset = this.camera.position.clone().sub(earthPos);
-        }
+        this.applyBodyCameraPreset('EARTH');
     }
 
     viewJupiterSystem() {
-        // Jupiter and its Galilean moons
-        const jupiter = this.bodies.get('JUPITER');
-        if (jupiter) {
-            const jupiterPos = (jupiter.container || jupiter.mesh).position;
-            this.camera.position.set(
-                jupiterPos.x + 20,
-                jupiterPos.y + 10,
-                jupiterPos.z + 20
-            );
-            this.controls.target.copy(jupiterPos);
-            this.followBody = 'JUPITER'; // Follow Jupiter
-            // Calculate offset for follow mode
-            this.followOffset = this.camera.position.clone().sub(jupiterPos);
-        }
+        this.applyBodyCameraPreset('JUPITER');
     }
 
     viewSaturnSystem() {
-        // Saturn and its rings
-        const saturn = this.bodies.get('SATURN');
-        if (saturn) {
-            const saturnPos = (saturn.container || saturn.mesh).position;
-            this.camera.position.set(
-                saturnPos.x + 25,
-                saturnPos.y + 15,
-                saturnPos.z + 25
-            );
-            this.controls.target.copy(saturnPos);
-            this.followBody = 'SATURN'; // Follow Saturn
-            // Calculate offset for follow mode
-            this.followOffset = this.camera.position.clone().sub(saturnPos);
-        }
+        this.applyBodyCameraPreset('SATURN');
     }
 
     setScaleMode(mode) {
@@ -2186,22 +2206,13 @@ export class SolarSystemApp {
     /**
      * Create reflected light sources on major bodies
      * These simulate secondary illumination (e.g., Earthshine on Moon)
+     * Reads configuration from celestialBodies.js
      */
     createReflectedLights() {
-        // Major bodies that reflect significant sunlight
-        const reflectiveBodies = [
-            { key: 'EARTH', intensity: 0.15, distance: 10, color: 0x4488ff }, // Blue Earth
-            { key: 'JUPITER', intensity: 0.12, distance: 50, color: 0xffddaa }, // Yellowish Jupiter
-            { key: 'SATURN', intensity: 0.10, distance: 40, color: 0xffffcc }, // Pale Saturn
-            { key: 'VENUS', intensity: 0.18, distance: 5, color: 0xffffee }, // Bright Venus (high albedo)
-            { key: 'MARS', intensity: 0.08, distance: 8, color: 0xff8844 }, // Reddish Mars
-            { key: 'URANUS', intensity: 0.09, distance: 30, color: 0x88ddff }, // Cyan Uranus
-            { key: 'NEPTUNE', intensity: 0.08, distance: 30, color: 0x4466ff }  // Blue Neptune
-        ];
-
-        for (const config of reflectiveBodies) {
-            const body = this.bodies.get(config.key);
-            if (body) {
+        // Iterate through all bodies and check if they have reflectedLight config
+        for (const [key, body] of this.bodies) {
+            if (body.data && body.data.reflectedLight && body.data.reflectedLight.enabled) {
+                const config = body.data.reflectedLight;
                 const targetObject = body.container || body.mesh;
 
                 // Create point light to simulate reflected sunlight
@@ -2216,7 +2227,7 @@ export class SolarSystemApp {
                 targetObject.add(reflectedLight);
 
                 // Store reference
-                this.reflectedLights.set(config.key, reflectedLight);
+                this.reflectedLights.set(key, reflectedLight);
             }
         }
     }

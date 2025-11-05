@@ -157,7 +157,7 @@ getBodyEmoji(key) {
 
 #### **1. UI Button**
 
-**File**: `index_full.html` (line 321)
+**File**: `index.html` (line 321)
 
 Removed disabled styling:
 ```html
@@ -166,7 +166,7 @@ Removed disabled styling:
 
 #### **2. Event Handler**
 
-**File**: `index_full.html` (lines 662-678)
+**File**: `index.html` (lines 662-678)
 
 ```javascript
 // Reverse button - toggle time direction
@@ -275,7 +275,7 @@ this.time += deltaTime * this.timeSpeed;
 
 **Total**: ~120 lines added
 
-### `index_full.html`
+### `index.html`
 
 **Lines Modified**:
 - Line 321: Enabled Reverse button (removed disabled styling)
