@@ -23,6 +23,8 @@ export class SolarSystemApp {
         this.isPaused = false;
         this.scaleMode = 'visible'; // 'realistic' or 'visible'
         this.followBody = null; // Body key to follow with camera
+        this.preserveZoom = true; // When following, preserve camera distance
+        this.followOffset = null; // Camera offset when following (relative to body)
 
         // Scale multipliers for real-time adjustment (per mode)
         this.scaleMultipliers = {
@@ -716,11 +718,43 @@ export class SolarSystemApp {
         // Populate Follow Body dropdown from config
         this.populateFollowBodyDropdown();
 
+        // Populate Body List from config
+        this.populateBodyList();
+
         // Follow Body dropdown
         const followBodySelect = document.getElementById('follow-body');
         if (followBodySelect) {
             followBodySelect.addEventListener('change', (e) => {
-                this.followBody = e.target.value || null;
+                const newFollowBody = e.target.value || null;
+
+                // If starting to follow a new body, calculate initial offset
+                if (newFollowBody && newFollowBody !== this.followBody) {
+                    const body = this.bodies.get(newFollowBody);
+                    if (body) {
+                        const targetObject = body.container || body.mesh;
+                        // Store camera offset relative to the body
+                        this.followOffset = this.camera.position.clone().sub(targetObject.position);
+                    }
+                }
+
+                this.followBody = newFollowBody;
+            });
+        }
+
+        // Preserve Zoom checkbox
+        const preserveZoomCheck = document.getElementById('preserve-zoom');
+        if (preserveZoomCheck) {
+            preserveZoomCheck.addEventListener('change', (e) => {
+                this.preserveZoom = e.target.checked;
+
+                // If we're following and just disabled preserve zoom, calculate offset
+                if (this.followBody && !this.preserveZoom) {
+                    const body = this.bodies.get(this.followBody);
+                    if (body) {
+                        const targetObject = body.container || body.mesh;
+                        this.followOffset = this.camera.position.clone().sub(targetObject.position);
+                    }
+                }
             });
         }
     }
@@ -775,9 +809,9 @@ export class SolarSystemApp {
                 groups.planet.forEach(({ key, data }) => {
                     const option = document.createElement('option');
                     option.value = key;
-                    // Try to find emoji icon from body list or use default
                     const emoji = this.getBodyEmoji(key);
-                    option.textContent = `${emoji} ${data.name_en || data.name}`;
+                    const parent = this.formatParentName(data.parent);
+                    option.textContent = `${emoji} ${data.name_en || data.name} ${parent}`;
                     planetGroup.appendChild(option);
                 });
                 select.appendChild(planetGroup);
@@ -790,7 +824,8 @@ export class SolarSystemApp {
                 groups.dwarf_planet.forEach(({ key, data }) => {
                     const option = document.createElement('option');
                     option.value = key;
-                    option.textContent = `♇ ${data.name_en || data.name}`;
+                    const parent = this.formatParentName(data.parent);
+                    option.textContent = `♇ ${data.name_en || data.name} ${parent}`;
                     dwarfGroup.appendChild(option);
                 });
                 select.appendChild(dwarfGroup);
@@ -804,7 +839,8 @@ export class SolarSystemApp {
                     const option = document.createElement('option');
                     option.value = key;
                     const emoji = key === 'MOON' ? '🌙 ' : '';
-                    option.textContent = `${emoji}${data.name_en || data.name}`;
+                    const parent = this.formatParentName(data.parent);
+                    option.textContent = `${emoji}${data.name_en || data.name} ${parent}`;
                     moonGroup.appendChild(option);
                 });
                 select.appendChild(moonGroup);
@@ -829,6 +865,117 @@ export class SolarSystemApp {
             'MOON': '🌙'
         };
         return emojiMap[key] || '';
+    }
+
+    /**
+     * Format parent name for display
+     * Returns (ParentName) or empty string if no parent
+     */
+    formatParentName(parent) {
+        if (!parent) return '';
+
+        // Capitalize first letter
+        const formatted = parent.charAt(0).toUpperCase() + parent.slice(1);
+        return `(${formatted})`;
+    }
+
+    /**
+     * Populate Body List from celestial bodies config
+     * Automatically updates when config changes
+     */
+    populateBodyList() {
+        const bodyListContainer = document.getElementById('body-list');
+        if (!bodyListContainer) return;
+
+        // Import celestial bodies config
+        import('./config/celestialBodies.js').then(({ CELESTIAL_BODIES }) => {
+            // Clear existing list
+            bodyListContainer.innerHTML = '';
+
+            // Group bodies by type
+            const groups = {
+                star: [],
+                planet: [],
+                dwarf_planet: [],
+                moon: []
+            };
+
+            // Categorize all bodies
+            for (const [key, data] of Object.entries(CELESTIAL_BODIES)) {
+                if (data.type && groups[data.type] !== undefined) {
+                    groups[data.type].push({ key, data });
+                }
+            }
+
+            // Add stars (Sun)
+            if (groups.star.length > 0) {
+                groups.star.forEach(({ key, data }) => {
+                    const div = document.createElement('div');
+                    div.className = 'body-item';
+                    div.dataset.body = key;
+                    div.textContent = `☀️ ${data.name_en || data.name}`;
+                    bodyListContainer.appendChild(div);
+                });
+            }
+
+            // Add planets
+            if (groups.planet.length > 0) {
+                groups.planet.forEach(({ key, data }) => {
+                    const div = document.createElement('div');
+                    div.className = 'body-item';
+                    div.dataset.body = key;
+                    const emoji = this.getBodyEmoji(key);
+                    const parent = this.formatParentName(data.parent);
+                    div.textContent = `${emoji} ${data.name_en || data.name} ${parent}`;
+                    bodyListContainer.appendChild(div);
+                });
+            }
+
+            // Add dwarf planets (Pluto)
+            if (groups.dwarf_planet.length > 0) {
+                groups.dwarf_planet.forEach(({ key, data }) => {
+                    const div = document.createElement('div');
+                    div.className = 'body-item';
+                    div.dataset.body = key;
+                    const parent = this.formatParentName(data.parent);
+                    div.textContent = `♇ ${data.name_en || data.name} ${parent}`;
+                    bodyListContainer.appendChild(div);
+                });
+            }
+
+            // Add moons
+            if (groups.moon.length > 0) {
+                groups.moon.forEach(({ key, data }) => {
+                    const div = document.createElement('div');
+                    div.className = 'body-item';
+                    div.dataset.body = key;
+                    const emoji = key === 'MOON' ? '🌙' : '';
+                    const parent = this.formatParentName(data.parent);
+                    div.textContent = `${emoji} ${data.name_en || data.name} ${parent}`;
+                    bodyListContainer.appendChild(div);
+                });
+            }
+
+            // Attach event handlers after populating
+            this.attachBodyListHandlers();
+        });
+    }
+
+    /**
+     * Attach event handlers to body list items
+     */
+    attachBodyListHandlers() {
+        document.querySelectorAll('.body-item').forEach(item => {
+            // Single click - focus
+            item.addEventListener('click', (e) => {
+                // Remove selected from all
+                document.querySelectorAll('.body-item').forEach(i => i.classList.remove('selected'));
+                // Add selected to clicked
+                e.target.classList.add('selected');
+                // Focus on body
+                this.focusOnBody(e.target.dataset.body);
+            });
+        });
     }
 
     updateBodies(deltaTime) {
@@ -1180,7 +1327,20 @@ export class SolarSystemApp {
                 // Follow the container for planets, mesh for moons
                 const targetObject = body.container || body.mesh;
                 if (targetObject) {
-                    this.controls.target.copy(targetObject.position);
+                    if (this.preserveZoom) {
+                        // Preserve Zoom ON: Only update camera target (where we're looking)
+                        // Camera position stays where it is (free movement)
+                        this.controls.target.copy(targetObject.position);
+                    } else {
+                        // Preserve Zoom OFF: Move camera to follow the body
+                        // Maintains the relative offset from when following started
+                        if (this.followOffset) {
+                            // Camera moves with the body, keeping same relative position
+                            this.camera.position.copy(targetObject.position).add(this.followOffset);
+                        }
+                        // Always point at the body
+                        this.controls.target.copy(targetObject.position);
+                    }
                 }
             }
         }
@@ -1549,6 +1709,8 @@ export class SolarSystemApp {
             );
             this.controls.target.copy(earthPos);
             this.followBody = 'EARTH'; // Follow Earth
+            // Calculate offset for follow mode
+            this.followOffset = this.camera.position.clone().sub(earthPos);
         }
     }
 
@@ -1564,6 +1726,8 @@ export class SolarSystemApp {
             );
             this.controls.target.copy(jupiterPos);
             this.followBody = 'JUPITER'; // Follow Jupiter
+            // Calculate offset for follow mode
+            this.followOffset = this.camera.position.clone().sub(jupiterPos);
         }
     }
 
@@ -1579,6 +1743,8 @@ export class SolarSystemApp {
             );
             this.controls.target.copy(saturnPos);
             this.followBody = 'SATURN'; // Follow Saturn
+            // Calculate offset for follow mode
+            this.followOffset = this.camera.position.clone().sub(saturnPos);
         }
     }
 

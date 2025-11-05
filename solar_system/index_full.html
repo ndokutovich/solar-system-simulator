@@ -411,6 +411,10 @@
                 <option value="">Not following</option>
                 <!-- Options populated from celestialBodies.js -->
             </select>
+            <div class="checkbox-group" style="margin-top: 8px;">
+                <input type="checkbox" id="preserve-zoom" checked>
+                <label for="preserve-zoom">Preserve Zoom</label>
+            </div>
         </div>
 
         <!-- View Options -->
@@ -492,16 +496,7 @@
         <div class="control-group">
             <label>Celestial Bodies (Click to focus)</label>
             <div id="body-list">
-                <div class="body-item" data-body="SUN">☀️ Sun</div>
-                <div class="body-item" data-body="MERCURY">☿ Mercury</div>
-                <div class="body-item" data-body="VENUS">♀ Venus</div>
-                <div class="body-item" data-body="EARTH">🌍 Earth</div>
-                <div class="body-item" data-body="MARS">♂ Mars</div>
-                <div class="body-item" data-body="JUPITER">♃ Jupiter</div>
-                <div class="body-item" data-body="SATURN">♄ Saturn</div>
-                <div class="body-item" data-body="URANUS">♅ Uranus</div>
-                <div class="body-item" data-body="NEPTUNE">♆ Neptune</div>
-                <div class="body-item" data-body="PLUTO">♇ Pluto</div>
+                <!-- Populated dynamically from celestialBodies.js -->
             </div>
         </div>
     </div>
@@ -933,18 +928,8 @@
                     app.updateDateDisplay();
                 });
 
-                // Setup body list clicks
-                document.querySelectorAll('.body-item').forEach(item => {
-                    // Single click - focus
-                    item.addEventListener('click', (e) => {
-                        // Remove selected from all
-                        document.querySelectorAll('.body-item').forEach(i => i.classList.remove('selected'));
-                        // Add selected to clicked
-                        e.target.classList.add('selected');
-                        // Focus on body
-                        app.focusOnBody(e.target.dataset.body);
-                    });
-                });
+                // Body list is now populated dynamically from config
+                // Event handlers attached in attachBodyListHandlers()
 
                 // Setup Details button in info panel
                 const showDetailsBtn = document.getElementById('show-details-btn');
