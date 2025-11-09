@@ -152,8 +152,8 @@ export class SolarSystemApp {
         this.camera = new THREE.PerspectiveCamera(
             45,
             this.container.clientWidth / this.container.clientHeight,
-            0.001,
-            10000
+            0.0001,    // Extremely close near plane for super zoom-in
+            1000000    // Extremely far plane for super zoom-out
         );
         this.camera.position.set(5, 3, 5);
         this.camera.lookAt(0, 0, 0);
@@ -757,8 +757,8 @@ export class SolarSystemApp {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
-        this.controls.minDistance = 0.1;
-        this.controls.maxDistance = 1000;
+        this.controls.minDistance = 0.001;   // Allow extremely close zoom
+        this.controls.maxDistance = 100000;  // Allow extremely far zoom
 
         // Mouse picking
         this.raycaster = new THREE.Raycaster();
@@ -2585,9 +2585,9 @@ export class SolarSystemApp {
         // Re-enable OrbitControls
         this.controls.enabled = true;
 
-        // Restore camera planes
-        this.camera.near = 0.1;
-        this.camera.far = 2000;
+        // Restore camera planes to default extreme zoom values
+        this.camera.near = 0.0001;
+        this.camera.far = 1000000;
         this.camera.updateProjectionMatrix();
 
         // Remove FPS control event listeners

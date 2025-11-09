@@ -303,8 +303,8 @@ export class MobileUI {
         // Implement camera zoom on pinch
         if (this.app && this.app.camera && this.app.controls) {
             const camera = this.app.camera;
-            const minDistance = 10;
-            const maxDistance = 1000;
+            const minDistance = 0.001;    // Match OrbitControls minDistance
+            const maxDistance = 100000;   // Match OrbitControls maxDistance
 
             // Adjust camera distance based on scale
             const currentDistance = camera.position.length();
