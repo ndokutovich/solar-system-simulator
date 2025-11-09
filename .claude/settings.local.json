@@ -16,7 +16,10 @@
       "Bash(node:*)",
       "Bash(dir:*)",
       "Bash(npm run build:*)",
-      "Bash(npm run copy:src:*)"
+      "Bash(npm run copy:src:*)",
+      "mcp__deepcontext-local__index_codebase",
+      "mcp__deepcontext-local__get_indexing_status",
+      "Bash(npm run serve:*)"
     ],
     "deny": [],
     "ask": []

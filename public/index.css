@@ -208,17 +208,21 @@ select optgroup {
 /* Checkboxes */
 .checkbox-group {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 10px 0;
+  align-items: center;  /* Vertically center checkbox with text */
+  justify-content: flex-start;  /* Left align */
+  gap: 0;  /* No gap, using margin-right on checkbox instead */
+  margin-bottom: 8px;
 }
 
 .checkbox-group label {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
+  display: inline !important;  /* Keep inline with checkbox */
+  font-size: 13px;
   cursor: pointer;
   transition: color 0.3s;
+  margin: 0;  /* Remove all margins */
+  padding: 0;  /* Remove all padding */
+  white-space: nowrap;  /* Prevent text wrapping */
+  line-height: normal;  /* Normal line height */
 }
 
 .checkbox-group label:hover {
@@ -226,15 +230,17 @@ select optgroup {
 }
 
 .checkbox-group input[type="checkbox"] {
-  margin-right: 8px;
-  width: 14px;
-  height: 14px;
+  margin: 0 8px 0 0;  /* Only right margin */
+  width: 15px;
+  height: 15px;
   cursor: pointer;
   accent-color: #00ff00;
+  flex-shrink: 0;  /* Prevent checkbox from shrinking */
+  vertical-align: middle;  /* Align with text */
 }
 
-/* Labels */
-label {
+/* Labels (for non-checkbox labels like sliders, dropdowns) */
+label:not(.checkbox-group label) {
   display: block;
   font-size: 12px;
   color: #aaaaaa;
@@ -371,27 +377,356 @@ label span {
   background: rgba(0, 255, 0, 0.5);
 }
 
-/* Mobile responsive */
-@media (max-width: 768px) {
+/* =====================================================
+   MOBILE RESPONSIVE DESIGN
+   ===================================================== */
+
+/* Hamburger Menu Button */
+.hamburger-menu {
+  display: none; /* Hidden by default */
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;  /* Add padding for proper spacing */
+  background: rgba(20, 20, 30, 0.9);
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  border-radius: 8px;
+  z-index: 2000;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.hamburger-menu span {
+  display: block;
+  width: 100%;  /* Full width of the padded area */
+  height: 2px;
+  background: #00ff00;
+  margin: 4px 0;  /* Even spacing between lines */
+  transition: all 0.3s;
+  border-radius: 1px;
+}
+
+.hamburger-menu.active span:nth-child(1) {
+  transform: rotate(45deg) translate(0, 6px);
+}
+
+.hamburger-menu.active span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.hamburger-menu.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(0, -6px);
+}
+
+.hamburger-menu:hover {
+  background: rgba(30, 30, 40, 0.95);
+  border-color: #00ff00;
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+/* Mobile Overlay */
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(5px);
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.mobile-overlay.active {
+  opacity: 1;
+}
+
+/* Floating Controls for Mobile */
+.floating-controls {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 15px;
+  z-index: 900;
+}
+
+.floating-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(20, 20, 30, 0.9);
+  border: 2px solid rgba(0, 255, 0, 0.5);
+  color: #00ff00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s;
+}
+
+.floating-btn:hover,
+.floating-btn:active {
+  background: rgba(30, 30, 40, 0.95);
+  transform: scale(1.1);
+  box-shadow: 0 6px 25px rgba(0, 255, 0, 0.4);
+}
+
+.floating-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* Device-specific classes */
+.is-mobile .hamburger-menu {
+  display: block;  /* Show on mobile */
+}
+
+.is-tablet .hamburger-menu {
+  display: block;  /* Show on tablet */
+}
+
+.is-mobile.has-touch .floating-controls {
+  display: flex;
+}
+
+.is-mobile .mobile-overlay {
+  display: block;
+}
+
+.is-tablet .mobile-overlay {
+  display: block;
+}
+
+/* Control Panel Mobile Behavior */
+.is-mobile #control-panel,
+.is-mobile #controls {
+  position: fixed;
+  top: 0;
+  left: -320px; /* Off-screen by default */
+  width: 280px;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  transition: transform 0.3s ease;
+  z-index: 1001;
+}
+
+.is-mobile #control-panel.open,
+.is-mobile #controls.open {
+  transform: translateX(320px);
+}
+
+.is-tablet #control-panel,
+.is-tablet #controls {
+  position: fixed;
+  top: 0;
+  left: -320px;
+  width: 300px;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  transition: transform 0.3s ease;
+  z-index: 1001;
+}
+
+.is-tablet #control-panel.open,
+.is-tablet #controls.open {
+  transform: translateX(320px);
+}
+
+/* Desktop keeps default behavior */
+.is-desktop #control-panel.open,
+.is-desktop #controls.open {
+  transform: none;
+  left: 10px;
+}
+
+/* Hide Help Panel on Mobile */
+.is-mobile #help {
+  display: none;
+}
+
+/* Mobile-optimized Info Panel */
+.is-mobile #info-panel {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  left: 0;
+  top: auto;
+  width: 100%;
+  max-height: 40vh;
+  border-radius: 20px 20px 0 0;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.is-mobile #info-panel.active {
+  transform: translateY(0);
+}
+
+/* Touch-optimized sizes */
+.is-mobile button,
+.is-tablet button {
+  min-height: 44px;
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+.is-mobile input[type="range"]::-webkit-slider-thumb {
+  width: 24px;
+  height: 24px;
+  margin-top: -10px;
+}
+
+.is-mobile input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+}
+
+.is-mobile .checkbox-group input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-right: 12px;
+}
+
+.is-mobile .checkbox-group label {
+  font-size: 14px;
+  padding: 5px 0;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 640px) {
+  /* Mobile styles */
   #controls {
+    font-size: 14px;
+  }
+
+  .panel h3 {
+    font-size: 16px;
+    padding: 10px 0;
+  }
+
+  .control-group {
+    margin: 15px 0;
+  }
+
+  select {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  /* Compact stats panel */
+  #stats {
+    bottom: 80px; /* Above floating controls */
     left: 10px;
-    width: 240px;
+    padding: 8px;
     font-size: 11px;
+    background: rgba(20, 20, 30, 0.7);
+  }
+
+  /* Popup modal adjustments */
+  .popup {
+    width: 90%;
+    min-width: auto;
+    max-width: none;
+    padding: 20px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .popup h2 {
+    font-size: 20px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  /* Tablet styles */
+  #controls {
+    width: 300px;
   }
 
   #info-panel {
     right: 10px;
-    width: 220px;
-    font-size: 11px;
-  }
-
-  .panel h3 {
-    font-size: 12px;
+    width: 280px;
   }
 
   button {
-    font-size: 11px;
-    padding: 6px 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1025px) {
+  /* Desktop styles - default behavior */
+  .hamburger-menu {
+    display: none !important;
+  }
+
+  .mobile-overlay {
+    display: none !important;
+  }
+
+  .floating-controls {
+    display: none !important;
+  }
+
+  #control-panel,
+  #controls {
+    position: absolute;
+    left: 10px !important;
+    transform: none !important;
+  }
+}
+
+/* Landscape mode adjustments */
+@media (max-width: 812px) and (orientation: landscape) {
+  .mobile-landscape #control-panel,
+  .mobile-landscape #controls {
+    max-height: 100vh;
+    width: 250px;
+  }
+
+  .mobile-landscape .floating-controls {
+    bottom: 10px;
+  }
+
+  .mobile-landscape #info-panel {
+    max-height: 50vh;
+  }
+
+  .mobile-landscape #stats {
+    display: none;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase all interactive element sizes */
+  button {
+    min-height: 44px;
+  }
+
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+
+  select {
+    min-height: 44px;
+  }
+
+  /* Remove hover effects on touch devices */
+  button:hover {
+    background: linear-gradient(135deg, #2a2a3a, #1a1a2a);
   }
 }
 

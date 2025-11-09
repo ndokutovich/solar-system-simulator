@@ -12,6 +12,7 @@ import { calculateBodyRotation, calculateSubSolarPoint } from './domain/services
 import { getSunDirectionInBodyFrame } from './domain/services/CoordinateTransforms.js';
 import { getCurrentSimulationTime } from './domain/services/DateTimeService.js';
 import { validateDOMElement, validateWebGLSupport } from './infrastructure/utils/ValidationUtils.js';
+import { MobileUI } from './ui/MobileUI.js';
 
 export class SolarSystemApp {
     constructor(containerId) {
@@ -99,6 +100,9 @@ export class SolarSystemApp {
         // Selected body tracking
         this.selectedBodyKey = null;
 
+        // Mobile UI handler
+        this.mobileUI = null;
+
         // Initialize
         this.init();
     }
@@ -109,6 +113,7 @@ export class SolarSystemApp {
         this.initBodies();
         this.initControls();
         this.initUI();
+        this.initMobileUI(); // Initialize mobile UI after regular UI
         this.updateDateDisplay(); // Show current date immediately
         this.animate();
     }
@@ -846,6 +851,67 @@ export class SolarSystemApp {
     }
 
     /**
+     * Initialize mobile UI components and touch handlers
+     */
+    initMobileUI() {
+        // Create mobile UI manager
+        this.mobileUI = new MobileUI(this);
+
+        // Add touch event handlers for planet selection
+        this.setupTouchInteraction();
+    }
+
+    /**
+     * Setup touch interaction for planet selection
+     */
+    setupTouchInteraction() {
+        // Handle double tap for planet selection
+        this.handleDoubleTap = (x, y) => {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            // Convert touch coordinates to normalized device coordinates
+            mouse.x = (x / window.innerWidth) * 2 - 1;
+            mouse.y = -(y / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, this.camera);
+
+            // Check for intersections with celestial bodies
+            const meshes = [];
+            for (const body of this.bodies.values()) {
+                if (body.mesh) {
+                    meshes.push(body.mesh);
+                }
+            }
+
+            const intersects = raycaster.intersectObjects(meshes);
+            if (intersects.length > 0) {
+                const mesh = intersects[0].object;
+                // Find which body this mesh belongs to
+                for (const [key, body] of this.bodies.entries()) {
+                    if (body.mesh === mesh) {
+                        this.selectBody(key);
+                        // Auto-close mobile panel after selection if on mobile
+                        if (this.mobileUI && this.mobileUI.autoCloseOnMobile) {
+                            this.mobileUI.autoCloseOnMobile();
+                        }
+                        break;
+                    }
+                }
+            }
+        };
+
+        // Add method to toggle play/pause (called from mobile UI)
+        this.togglePlayPause = () => {
+            this.isPaused = !this.isPaused;
+            const playBtn = document.getElementById('play-pause');
+            if (playBtn) {
+                playBtn.textContent = this.isPaused ? '▶' : '⏸';
+            }
+        };
+    }
+
+    /**
      * Populate Follow Body dropdown from celestial bodies config
      * Automatically updates when config changes
      */
@@ -1519,16 +1585,35 @@ export class SolarSystemApp {
      */
     updateSelectedObjectInfo(bodyKey) {
         const infoPanel = document.getElementById('info-panel');
+        const minimizedPanel = document.getElementById('info-panel-minimized');
         if (!infoPanel) return;
 
         const body = this.bodies.get(bodyKey);
         if (!body) {
             infoPanel.style.display = 'none';
+            if (minimizedPanel) minimizedPanel.style.display = 'none';
             return;
         }
 
         const data = body.data;
-        infoPanel.style.display = 'block';
+
+        // Check if the panel was previously minimized
+        const isMinimized = localStorage.getItem('infoPanelMinimized') === 'true';
+
+        if (isMinimized && minimizedPanel) {
+            // Show minimized panel instead
+            infoPanel.style.display = 'none';
+            minimizedPanel.style.display = 'block';
+            // Update minimized panel name
+            const minimizedName = document.getElementById('minimized-name');
+            if (minimizedName) {
+                minimizedName.textContent = data.name_en || data.name;
+            }
+        } else {
+            // Show full panel
+            infoPanel.style.display = 'block';
+            if (minimizedPanel) minimizedPanel.style.display = 'none';
+        }
 
         // Basic info
         document.getElementById('selected-name').textContent = data.name_en || data.name;

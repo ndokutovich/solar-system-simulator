@@ -16,6 +16,7 @@
     <link rel="manifest" href="manifest.json">
 
     <title>Solar System Simulator</title>
+    <link rel="stylesheet" href="index.css">
     <style>
         * {
             margin: 0;
@@ -89,7 +90,7 @@
             margin-bottom: 15px;
         }
 
-        .control-group label {
+        .control-group > label:first-child {
             display: block;
             color: #88ff88;
             margin-bottom: 5px;
@@ -160,26 +161,8 @@
             margin-top: 5px;
         }
 
-        /* View Controls */
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        input[type="checkbox"] {
-            width: 15px;
-            height: 15px;
-            accent-color: #00ff00;
-            cursor: pointer;
-        }
-
-        .checkbox-group label {
-            margin-bottom: 0;
-            cursor: pointer;
-            font-size: 13px;
-        }
+        /* View Controls - Moved to external CSS */
+        /* Keeping minimal inline overrides only if needed */
 
         /* Body List */
         #body-list {
@@ -535,11 +518,22 @@
         </div>
     </div>
 
+    <!-- Minimized Info Panel (shown when info panel is minimized) -->
+    <div id="info-panel-minimized" style="position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(0, 255, 0, 0.3); display: none; cursor: pointer;" title="Click to restore">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: #ffff00; font-size: 14px; font-weight: bold;" id="minimized-name">-</span>
+            <button style="background: rgba(0, 255, 0, 0.2); border: 1px solid #00ff00; color: #00ff00; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">▼</button>
+        </div>
+    </div>
+
     <!-- Info Panel -->
     <div id="info-panel" style="position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px); padding: 15px; border-radius: 10px; border: 1px solid rgba(0, 255, 0, 0.3); width: 280px; font-size: 12px; color: #88ff88; display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h3 style="color: #00ff00; margin: 0; font-size: 16px;">Selected Object</h3>
-            <button id="show-details-btn" style="background: rgba(0, 255, 0, 0.2); border: 1px solid #00ff00; color: #00ff00; padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: bold;">📋 Details</button>
+            <div style="display: flex; gap: 5px;">
+                <button id="show-details-btn" style="background: rgba(0, 255, 0, 0.2); border: 1px solid #00ff00; color: #00ff00; padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: bold;">📋 Details</button>
+                <button id="minimize-info-btn" style="background: rgba(255, 68, 68, 0.2); border: 1px solid #ff4444; color: #ff4444; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; min-width: 28px;" title="Minimize">−</button>
+            </div>
         </div>
 
         <div style="margin-bottom: 10px;">
@@ -1095,6 +1089,40 @@
                 if (showDetailsBtn) {
                     showDetailsBtn.addEventListener('click', () => {
                         app.showSelectedBodyDetails();
+                    });
+                }
+
+                // Setup minimize button for info panel
+                const minimizeBtn = document.getElementById('minimize-info-btn');
+                const infoPanel = document.getElementById('info-panel');
+                const minimizedPanel = document.getElementById('info-panel-minimized');
+                const minimizedName = document.getElementById('minimized-name');
+
+                if (minimizeBtn && infoPanel && minimizedPanel) {
+                    minimizeBtn.addEventListener('click', () => {
+                        // Hide the full panel
+                        infoPanel.style.display = 'none';
+                        // Show the minimized panel
+                        minimizedPanel.style.display = 'block';
+                        // Update the minimized panel with the selected object name
+                        const selectedName = document.getElementById('selected-name');
+                        if (selectedName && minimizedName) {
+                            minimizedName.textContent = selectedName.textContent;
+                        }
+                        // Save state to localStorage
+                        localStorage.setItem('infoPanelMinimized', 'true');
+                    });
+                }
+
+                // Setup restore functionality for minimized panel
+                if (minimizedPanel && infoPanel) {
+                    minimizedPanel.addEventListener('click', () => {
+                        // Show the full panel
+                        infoPanel.style.display = 'block';
+                        // Hide the minimized panel
+                        minimizedPanel.style.display = 'none';
+                        // Save state to localStorage
+                        localStorage.setItem('infoPanelMinimized', 'false');
                     });
                 }
 
