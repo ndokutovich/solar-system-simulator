@@ -79,12 +79,12 @@ export class MobileUI {
             document.body.appendChild(hamburger);
         }
 
-        // Create overlay for mobile drawer
+        // Create overlay for mobile drawer (initially hidden)
         let overlay = document.getElementById('mobile-overlay');
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'mobile-overlay';
-            overlay.className = 'mobile-overlay';
+            overlay.className = 'mobile-overlay';  // No 'active' class by default
             document.body.appendChild(overlay);
         }
 

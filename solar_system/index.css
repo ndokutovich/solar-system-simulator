@@ -440,10 +440,13 @@ label span {
   z-index: 999;
   opacity: 0;
   transition: opacity 0.3s;
+  pointer-events: none;  /* Don't block clicks when invisible */
 }
 
 .mobile-overlay.active {
+  display: block;
   opacity: 1;
+  pointer-events: auto;  /* Only block clicks when active */
 }
 
 /* Floating Controls for Mobile */
@@ -498,13 +501,7 @@ label span {
   display: flex;
 }
 
-.is-mobile .mobile-overlay {
-  display: block;
-}
-
-.is-tablet .mobile-overlay {
-  display: block;
-}
+/* Mobile overlay is controlled by .active class, not device type */
 
 /* Control Panel Mobile Behavior */
 .is-mobile #control-panel,
@@ -754,7 +751,12 @@ label span {
   border: 1px solid rgba(0, 255, 0, 0.3);
 }
 
-/* Transition for all interactive elements */
-* {
+/* Transition for interactive elements - but NOT canvas */
+button, input, select, .panel, .hamburger-menu, .floating-btn {
   transition: opacity 0.3s, transform 0.3s;
+}
+
+/* Ensure canvas has no transitions */
+canvas {
+  transition: none !important;
 }
